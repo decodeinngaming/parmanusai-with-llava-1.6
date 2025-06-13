@@ -111,3 +111,10 @@ scripts/
 
 # PowerShell scripts
 *.ps1
+.gitignore_new
+scripts_new/download_model.py
+.gitignore
+scripts_new/setup.sh
+news_api_webpage.py
+news_webpage.py
+README_NEW.md
