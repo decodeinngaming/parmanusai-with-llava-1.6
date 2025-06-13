@@ -17,7 +17,7 @@ class FileAgent(BaseAgent):
 
     async def step(self):
         """
-        Handle file operations including fetching news, summarizing, and saving.
+        Handle file operations including creating HTML files, text files, and other content.
         """
         import os
         from datetime import datetime
@@ -26,20 +26,101 @@ class FileAgent(BaseAgent):
         if hasattr(self, "_file_saved") and self._file_saved:
             return "Task completed - file already saved."
 
-        # Check if this is a news request that needs browser agent
+        # Get the user request
         user_request = None
         if hasattr(self, "messages"):
             for msg in reversed(self.messages):
                 if msg.role == "user":
-                    user_request = msg.content.lower()
+                    user_request = msg.content
                     break
 
-        if user_request and any(
-            word in user_request for word in ["news", "search", "summarize", "look for"]
+        if not user_request:
+            return "No user request found."
+
+        # Analyze the request to determine file type and content
+        user_request_lower = user_request.lower()
+
+        # Determine file type and generate appropriate content
+        if "html" in user_request_lower and (
+            "webpage" in user_request_lower or "page" in user_request_lower
         ):
-            # This is a complex task that needs browser agent - delegate to browser for news fetching
+            # Create HTML webpage
+            title = "My Test Page"  # Default title
+
+            # Extract title if specified
+            if "title" in user_request_lower:
+                import re
+
+                title_match = re.search(
+                    r"title\s*['\"]([^'\"]+)['\"]", user_request, re.IGNORECASE
+                )
+                if title_match:
+                    title = title_match.group(1)
+
+            # Generate HTML content
+            content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }}
+        .container {{
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }}
+        h1 {{
+            color: #333;
+            text-align: center;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }}
+        p {{
+            color: #666;
+            line-height: 1.6;
+        }}
+        .highlight {{
+            background-color: #e8f5e8;
+            padding: 15px;
+            border-left: 4px solid #4CAF50;
+            margin: 20px 0;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{title}</h1>
+        <p>Welcome to this simple HTML webpage!</p>
+        <div class="highlight">
+            <p>This page was created by the ParManusAI file agent. It demonstrates basic HTML structure with some styling.</p>
+        </div>
+        <p>This is a sample webpage with:</p>
+        <ul>
+            <li>A clean, responsive design</li>
+            <li>Professional styling</li>
+            <li>Semantic HTML structure</li>
+            <li>Modern CSS styling</li>
+        </ul>
+        <p>You can customize this content as needed for your specific requirements.</p>
+    </div>
+</body>
+</html>"""
+
+            # Determine filename
+            filename = f"webpage_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+
+        elif "news" in user_request_lower or "search" in user_request_lower:
+            # Handle news requests by delegating to browser agent
             from app.agent.browser import BrowserAgent
-            from app.agent.router import AgentRouter
 
             try:
                 # Create browser agent to fetch and summarize news
@@ -61,25 +142,24 @@ class FileAgent(BaseAgent):
                 content = (
                     f"Error fetching news: {str(e)}\nFallback content: {user_request}"
                 )
-        else:
-            # Simple file save - get content from messages
-            content = None
-            if hasattr(self, "messages"):
-                for msg in reversed(self.messages):
-                    if msg.role in ("assistant", "tool") and msg.content:
-                        content = msg.content
-                        break
-            if not content:
-                content = user_request or "No content to save."
 
-        # Save to workspace/news_summary_<timestamp>.txt
+            filename = f"news_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+
+        else:
+            # Default text file creation
+            content = f"Content generated based on request: {user_request}\n\nTimestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            filename = f"content_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+
+        # Save the file
         workspace_dir = os.path.join(os.getcwd(), "workspace")
         os.makedirs(workspace_dir, exist_ok=True)
-        filename = f"news_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         file_path = os.path.join(workspace_dir, filename)
+
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
 
         # Mark as completed to avoid repeating
         self._file_saved = True
-        return f"News summary saved to {file_path}"
+
+        file_type = "HTML webpage" if filename.endswith(".html") else "file"
+        return f"{file_type.capitalize()} created and saved to {file_path}"

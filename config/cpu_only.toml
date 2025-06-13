@@ -1,0 +1,21 @@
+
+[llm]
+model = "llava-1.6"
+model_path = "f:/ParManusAI-optimized-version/models/llava-v1.6.gguf"
+max_tokens = 2048
+temperature = 0.7
+
+[gpu]
+force_cuda = false
+force_gpu_layers = 0
+enable_monitoring = false
+
+[mcp]
+server_reference = "run_mcp_server"
+
+[mcp.servers]
+
+[mcp.servers.default]
+type = "stdio"
+command = "python"
+args = ["-m", "run_mcp_server"]

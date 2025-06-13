@@ -67,7 +67,33 @@ class AgentRouter:
         # Log the query for debugging
         logger.info(f"Analyzing query for routing: {query}")
 
-        # Browser-related queries (check first for web content)
+        # File creation keywords (check first before browser keywords)
+        file_creation_keywords = [
+            "create",
+            "make",
+            "build",
+            "generate",
+            "write to file",
+            "save to file",
+            "html file",
+            "webpage file",
+            "create webpage",
+            "create html",
+            "build webpage",
+            "make webpage",
+        ]
+
+        # Check for file creation patterns first
+        if any(keyword in query_lower for keyword in file_creation_keywords):
+            # Check if it's specifically about creating files
+            if any(
+                file_word in query_lower
+                for file_word in ["file", "save", "create", "write", "make", "build"]
+            ):
+                logger.info("Routing to file agent based on file creation keywords")
+                return "file"
+
+        # Browser-related queries (for browsing, searching, navigating)
         browser_keywords = [
             "browse",
             "website",

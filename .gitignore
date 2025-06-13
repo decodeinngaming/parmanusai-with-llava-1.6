@@ -66,9 +66,9 @@ temp/
 tmp/
 
 # Test files
-test_*.py
-*_test.py
-debug_*.py
+# test_*.py  # Commenting out to enable testing files
+# *_test.py  # Commenting out to enable testing files
+# debug_*.py # Commenting out to enable debugging scripts
 
 # Backup files
 *.backup
@@ -76,10 +76,10 @@ debug_*.py
 *.orig
 
 # Configuration (keep examples)
-config/config.toml
-config/gpu_optimized.toml
-config/cpu_only.toml
-config/test_*.toml
+# config/config.toml  # Commenting out to track config changes
+# config/gpu_optimized.toml
+# config/cpu_only.toml
+# config/test_*.toml
 
 # Documentation backups
 *.md.backup
@@ -118,3 +118,40 @@ scripts_new/setup.sh
 news_api_webpage.py
 news_webpage.py
 README_NEW.md
+debug_tool_calls.py
+test_agent_readiness.py
+.gitignore
+test_browser_fallback.py
+test_browser_full.py
+.gitignore
+test_complete_workflow_new.py
+test_fallback_direct.py
+.gitignore
+test_final.py
+test_news_direct_simple.py
+test_news_direct.py
+.gitignore
+test_news_fallback.py
+.gitignore
+test_news_logic.py
+test_parser_simple.py
+test_simple_browser.py
+test_tool_calls_fixed.py
+test_tool_parser_fixed.py
+test_tools_simple.py
+app/llm_tool_patch.py.backup_20250613_144615
+app/llm_tool_patch.py.backup_20250613_145909
+.gitignore
+app/llm_tool_patch.py.backup_20250613_145930
+.gitignore
+app/prompt/browser.py.backup_20250613_144615
+.gitignore
+app/prompt/toolcall.py.backup_20250613_144615
+backups/browser.py.backup_20250613_161227
+backups/llm_tool_patch.py.backup_20250613_161227
+backups/llm_tool_patch.py.backup_20250613_161228
+backups/toolcall.py.backup_20250613_161227
+tests/sandbox/test_client.py
+tests/sandbox/test_docker_terminal.py
+tests/sandbox/test_sandbox_manager.py
+.gitignore
