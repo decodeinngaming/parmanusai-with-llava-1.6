@@ -1,0 +1,113 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+*.out
+
+# Model files (large files)
+models/
+*.gguf
+*.bin
+*.safetensors
+*.pt
+*.pth
+
+# Sessions and temporary files
+sessions/
+workspace/
+temp/
+tmp/
+
+# Test files
+test_*.py
+*_test.py
+debug_*.py
+
+# Backup files
+*.backup
+*.bak
+*.orig
+
+# Configuration (keep examples)
+config/config.toml
+config/gpu_optimized.toml
+config/cpu_only.toml
+config/test_*.toml
+
+# Documentation backups
+*.md.backup
+optimization_docs/
+final_fixes_*.md
+*_summary.md
+*_analysis.md
+*_guide.md
+
+# Scripts that are project-specific
+fix_*.py
+verify_*.py
+validate_*.py
+simple_*.py
+run_*.py
+
+# PDF files
+*.pdf
+
+# Optimization files
+main_optimized.py
+*_optimized.py
+
+# Large directories
+.github/
+examples/benchmarks/
+examples/use_case/
+scripts/
+
+# PowerShell scripts
+*.ps1

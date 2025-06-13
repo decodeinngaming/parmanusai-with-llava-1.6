@@ -1,0 +1,55 @@
+# ParManus with LLaVA 1.6 Configuration
+# Created by Parsu
+
+[llm]
+# LLaVA 1.6 Model Configuration
+model = "llava-1.6"
+model_path = "./models/llava-v1.6.gguf"
+vision_model_path = "./models/mmproj-model.gguf"
+max_tokens = 2048
+temperature = 0.7
+context_length = 4096
+
+# GPU Configuration
+[gpu]
+force_cuda = true        # Set to false for CPU-only mode
+gpu_layers = 27          # Number of layers to offload to GPU (adjust based on VRAM)
+enable_monitoring = true # Monitor GPU memory usage
+memory_threshold = 0.8   # Stop if GPU memory usage exceeds this
+
+# Browser Agent Configuration
+[browser]
+headless = true                                                                                                                    # Run browser in headless mode
+timeout = 30                                                                                                                       # Default timeout for browser operations
+user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+
+# File Agent Configuration
+[file]
+workspace_dir = "./workspace" # Directory for saving files
+auto_timestamp = true         # Add timestamps to saved files
+max_file_size = "10MB"        # Maximum file size for operations
+
+# Performance Configuration
+[performance]
+batch_size = 512      # Batch size for model inference
+threads = 8           # Number of CPU threads
+enable_caching = true # Enable model caching
+cache_size = "2GB"    # Maximum cache size
+
+# Logging Configuration
+[logging]
+level = "INFO"               # Log level: DEBUG, INFO, WARNING, ERROR
+file = "./logs/parmanus.log" # Log file path
+max_size = "100MB"           # Maximum log file size
+backup_count = 5             # Number of backup log files
+
+# MCP (Model Context Protocol) - Optional
+[mcp]
+server_reference = "run_mcp_server"
+
+[mcp.servers]
+
+[mcp.servers.default]
+type = "stdio"
+command = "python"
+args = ["run_mcp_server.py"]
