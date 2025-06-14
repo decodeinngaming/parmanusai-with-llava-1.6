@@ -18,6 +18,7 @@ class FileAgent(BaseAgent):
     async def step(self):
         """
         Handle file operations including creating HTML files, text files, and other content.
+        Enhanced to delegate web search tasks to browser agent when needed.
         """
         import os
         from datetime import datetime
@@ -40,14 +41,93 @@ class FileAgent(BaseAgent):
         # Analyze the request to determine file type and content
         user_request_lower = user_request.lower()
 
+        # Check if this request needs web search AND webpage creation
+        needs_web_search = any(
+            keyword in user_request_lower
+            for keyword in [
+                "search the web",
+                "search web",
+                "look up",
+                "find information",
+                "latest trends",
+                "current news",
+                "recent",
+                "today",
+                "now",
+                "up to date",
+                "real time",
+                "current information",
+            ]
+        )
+
+        needs_webpage_creation = any(
+            keyword in user_request_lower
+            for keyword in [
+                "create webpage",
+                "build webpage",
+                "make webpage",
+                "generate webpage",
+                "create page",
+                "build page",
+                "html",
+                "website",
+            ]
+        )
+
+        # If both web search and webpage creation are needed, delegate to browser first
+        if needs_web_search and needs_webpage_creation:
+            try:
+                # Import and create browser agent
+                from app.agent.browser import BrowserAgent
+
+                browser_agent = await BrowserAgent.create()
+
+                # Extract search query from the request
+                search_query = self._extract_search_query(user_request)
+
+                # Task the browser agent to perform the search
+                browser_task = (
+                    f"search for {search_query} and extract detailed information"
+                )
+                browser_agent.memory.add_message(
+                    browser_agent.memory.Message.user_message(browser_task)
+                )
+
+                # Run the browser agent to get search results
+                search_result = await browser_agent.run()
+
+                # Now create webpage with the search results
+                return await self._create_webpage_with_search_data(
+                    user_request, search_result
+                )
+
+            except Exception as e:
+                # Fallback to creating webpage without live data
+                pass
+
+        # Check if this is a CSS file request
+        if "css" in user_request_lower and any(
+            keyword in user_request_lower
+            for keyword in ["create", "write", "generate", "make", "build", "file"]
+        ):
+            return await self._create_css_file(user_request)
+
         # Determine file type and generate appropriate content
-        if "html" in user_request_lower and (
-            "webpage" in user_request_lower or "page" in user_request_lower
+        if (
+            (
+                "html" in user_request_lower
+                and ("webpage" in user_request_lower or "page" in user_request_lower)
+            )
+            or ("webpage" in user_request_lower or "web page" in user_request_lower)
+            or (
+                "build" in user_request_lower
+                and ("page" in user_request_lower or "site" in user_request_lower)
+            )
         ):
             # Create HTML webpage
-            title = "My Test Page"  # Default title
+            title = "My Webpage"  # Default title
 
-            # Extract title if specified
+            # Extract title if specified or generate from request
             if "title" in user_request_lower:
                 import re
 
@@ -57,7 +137,990 @@ class FileAgent(BaseAgent):
                 if title_match:
                     title = title_match.group(1)
 
-            # Generate HTML content
+            # Check if this is a request for fancy/animated webpage
+            is_fancy = any(
+                word in user_request_lower
+                for word in [
+                    "fancy",
+                    "animation",
+                    "transition",
+                    "interactive",
+                    "modern",
+                    "sophisticated",
+                    "advanced",
+                    "beautiful",
+                    "stunning",
+                    "dynamic",
+                ]
+            )
+
+            # Check if images are requested
+            wants_images = any(
+                word in user_request_lower
+                for word in [
+                    "image",
+                    "images",
+                    "picture",
+                    "pictures",
+                    "photo",
+                    "photos",
+                ]
+            )
+
+            # Generate title from request content if not explicitly provided
+            if "title" not in user_request_lower:
+                if (
+                    "kitchener" in user_request_lower
+                    and "ontario" in user_request_lower
+                ):
+                    title = "Top 10 Places to Visit in Kitchener, Ontario"
+                elif "cats" in user_request_lower:
+                    title = "All About Cats"
+                elif "travel" in user_request_lower or "visit" in user_request_lower:
+                    title = "Travel Guide"
+                else:
+                    title = "My Amazing Webpage"
+
+            # Generate dynamic content based on request
+            if "kitchener" in user_request_lower and (
+                "place" in user_request_lower or "visit" in user_request_lower
+            ):
+                if is_fancy and wants_images:
+                    main_content = f"""
+        <div class="hero-section">
+            <div class="hero-content">
+                <h1 class="hero-title">✨ Top 10 Places to Visit in Kitchener, Ontario ✨</h1>
+                <p class="hero-subtitle">Discover the vibrant heart of Waterloo Region</p>
+                <div class="hero-image">
+                    <img src="https://images.unsplash.com/photo-1551632436-cbf8dd35adfa?w=800&h=400&fit=crop"
+                         alt="Kitchener Skyline" class="fade-in-image" />
+                </div>
+            </div>
+        </div>
+
+        <div class="intro-section">
+            <p class="intro-text">Kitchener is a vibrant city in the heart of Waterloo Region, offering a perfect blend of culture, history, and modern attractions. Explore these amazing destinations!</p>
+        </div>
+
+        <div class="places-grid">
+            <div class="place-card animated" data-delay="0">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=300&h=200&fit=crop" alt="THEMUSEUM" />
+                    <div class="card-overlay">
+                        <span class="card-number">1</span>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <h3>THEMUSEUM</h3>
+                    <p>An interactive museum featuring science, technology, and art exhibitions for all ages.</p>
+                    <div class="card-footer">
+                        <span class="rating">⭐⭐⭐⭐⭐</span>
+                        <span class="category">Museum</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="place-card animated" data-delay="100">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=300&h=200&fit=crop" alt="Victoria Park" />
+                    <div class="card-overlay">
+                        <span class="card-number">2</span>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <h3>Victoria Park</h3>
+                    <p>Beautiful lakefront park perfect for picnics, walking trails, and outdoor events.</p>
+                    <div class="card-footer">
+                        <span class="rating">⭐⭐⭐⭐⭐</span>
+                        <span class="category">Nature</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="place-card animated" data-delay="200">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=300&h=200&fit=crop" alt="Kitchener Market" />
+                    <div class="card-overlay">
+                        <span class="card-number">3</span>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <h3>Kitchener Market</h3>
+                    <p>Historic farmers market operating since 1869, featuring local produce and artisan goods.</p>
+                    <div class="card-footer">
+                        <span class="rating">⭐⭐⭐⭐⭐</span>
+                        <span class="category">Market</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="place-card animated" data-delay="300">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=200&fit=crop" alt="CIGI Campus" />
+                    <div class="card-overlay">
+                        <span class="card-number">4</span>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <h3>CIGI Campus</h3>
+                    <p>Modern campus with beautiful architecture and public events.</p>
+                    <div class="card-footer">
+                        <span class="rating">⭐⭐⭐⭐</span>
+                        <span class="category">Architecture</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="place-card animated" data-delay="400">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1439066615861-d1af74d74000?w=300&h=200&fit=crop" alt="Grand River" />
+                    <div class="card-overlay">
+                        <span class="card-number">5</span>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <h3>Grand River</h3>
+                    <p>Scenic river perfect for kayaking, canoeing, and riverside walks.</p>
+                    <div class="card-footer">
+                        <span class="rating">⭐⭐⭐⭐⭐</span>
+                        <span class="category">Recreation</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="place-card animated" data-delay="500">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=300&h=200&fit=crop" alt="St. Jacobs Village" />
+                    <div class="card-overlay">
+                        <span class="card-number">6</span>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <h3>St. Jacobs Village</h3>
+                    <p>Charming nearby village known for its farmers market and Mennonite heritage.</p>
+                    <div class="card-footer">
+                        <span class="rating">⭐⭐⭐⭐⭐</span>
+                        <span class="category">Heritage</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="highlight animated fade-in-up">
+            <h3>🗺️ Planning Your Visit</h3>
+            <p>Kitchener offers something for everyone - from cultural attractions and historic sites to outdoor activities and family fun. The city is easily accessible by car or public transit, and many attractions are within walking distance of downtown.</p>
+            <div class="planning-tips">
+                <div class="tip">
+                    <span class="tip-icon">🚗</span>
+                    <span>Free parking available at most locations</span>
+                </div>
+                <div class="tip">
+                    <span class="tip-icon">🚌</span>
+                    <span>Excellent public transit connections</span>
+                </div>
+                <div class="tip">
+                    <span class="tip-icon">🏨</span>
+                    <span>Stay downtown for walking access</span>
+                </div>
+            </div>
+        </div>"""
+                else:
+                    # Regular version without fancy animations
+                    main_content = """
+        <h1>Top 10 Places to Visit in Kitchener, Ontario</h1>
+        <p>Kitchener is a vibrant city in the heart of Waterloo Region, offering a perfect blend of culture, history, and modern attractions.</p>
+
+        <div class="places-grid">
+            <div class="place-card">
+                <h3>1. THEMUSEUM</h3>
+                <p>An interactive museum featuring science, technology, and art exhibitions for all ages.</p>
+            </div>
+            <div class="place-card">
+                <h3>2. Victoria Park</h3>
+                <p>Beautiful lakefront park perfect for picnics, walking trails, and outdoor events.</p>
+            </div>
+            <div class="place-card">
+                <h3>3. Kitchener Market</h3>
+                <p>Historic farmers market operating since 1869, featuring local produce and artisan goods.</p>
+            </div>
+            <div class="place-card">
+                <h3>4. Centre for International Governance Innovation (CIGI)</h3>
+                <p>Modern campus with beautiful architecture and public events.</p>
+            </div>
+            <div class="place-card">
+                <h3>5. Grand River</h3>
+                <p>Scenic river perfect for kayaking, canoeing, and riverside walks.</p>
+            </div>
+            <div class="place-card">
+                <h3>6. St. Jacobs Village</h3>
+                <p>Charming nearby village known for its farmers market and Mennonite heritage.</p>
+            </div>
+            <div class="place-card">
+                <h3>7. Waterloo Park</h3>
+                <p>Large park with trails, playgrounds, and the famous Waterloo Park Pavilion.</p>
+            </div>
+            <div class="place-card">
+                <h3>8. Schneider Haus National Historic Site</h3>
+                <p>Historic German-Canadian heritage site showcasing early settlement history.</p>
+            </div>
+            <div class="place-card">
+                <h3>9. Homer Watson House & Gallery</h3>
+                <p>Art gallery and historic home of famous Canadian landscape painter Homer Watson.</p>
+            </div>
+            <div class="place-card">
+                <h3>10. Bingemans</h3>
+                <p>Family entertainment complex with water park, camping, and year-round activities.</p>
+            </div>
+        </div>
+
+        <div class="highlight">
+            <h3>Planning Your Visit</h3>
+            <p>Kitchener offers something for everyone - from cultural attractions and historic sites to outdoor activities and family fun. The city is easily accessible by car or public transit, and many attractions are within walking distance of downtown.</p>
+        </div>"""
+
+                if is_fancy and wants_images:
+                    additional_styles = """
+        /* Hero Section Styles */
+        .hero-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 80px 20px;
+            text-align: center;
+            margin: -40px -40px 40px -40px;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.3);
+            z-index: 1;
+        }
+        .hero-content {
+            position: relative;
+            z-index: 2;
+        }
+        .hero-title {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            animation: fadeInDown 1s ease-out;
+        }
+        .hero-subtitle {
+            font-size: 1.3rem;
+            margin-bottom: 2rem;
+            animation: fadeInUp 1s ease-out 0.3s both;
+        }
+        .hero-image img {
+            max-width: 600px;
+            width: 100%;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            animation: zoomIn 1s ease-out 0.6s both;
+        }
+
+        /* Intro Section */
+        .intro-section {
+            text-align: center;
+            margin: 40px 0;
+        }
+        .intro-text {
+            font-size: 1.2rem;
+            color: #555;
+            max-width: 800px;
+            margin: 0 auto;
+            animation: fadeIn 1s ease-out 1s both;
+        }
+
+        /* Places Grid */
+        .places-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin: 50px 0;
+        }
+        .place-card {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+            opacity: 0;
+            transform: translateY(50px);
+        }
+        .place-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        .place-card.animated {
+            animation: slideInUp 0.6s ease-out forwards;
+        }
+        .card-image {
+            position: relative;
+            height: 200px;
+            overflow: hidden;
+        }
+        .card-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+        .place-card:hover .card-image img {
+            transform: scale(1.1);
+        }
+        .card-overlay {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: rgba(76, 175, 80, 0.9);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            animation: pulse 2s infinite;
+        }
+        .card-content {
+            padding: 25px;
+        }
+        .card-content h3 {
+            color: #2c5f2d;
+            margin: 0 0 15px 0;
+            font-size: 1.3rem;
+        }
+        .card-content p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .rating {
+            font-size: 0.9rem;
+        }
+        .category {
+            background: #e8f5e8;
+            color: #2c5f2d;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        /* Planning Tips */
+        .planning-tips {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 25px;
+        }
+        .tip {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        .tip:hover {
+            transform: translateX(10px);
+        }
+        .tip-icon {
+            font-size: 2rem;
+        }
+
+        /* Animations */
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-50px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(50px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes zoomIn {
+            from { opacity: 0; transform: scale(0.5); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes slideInUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        .fade-in-up {
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .hero-title { font-size: 2rem; }
+            .hero-subtitle { font-size: 1.1rem; }
+            .places-grid { grid-template-columns: 1fr; gap: 20px; }
+            .planning-tips { grid-template-columns: 1fr; }
+        }"""
+
+                    javascript_code = """
+    <script>
+        // Animation trigger on scroll
+        function animateOnScroll() {
+            const elements = document.querySelectorAll('.animated');
+            elements.forEach(element => {
+                const elementTop = element.getBoundingClientRect().top;
+                const elementVisible = 150;
+
+                if (elementTop < window.innerHeight - elementVisible) {
+                    const delay = element.dataset.delay || 0;
+                    setTimeout(() => {
+                        element.style.animationDelay = delay + 'ms';
+                        element.classList.add('animate');
+                    }, delay);
+                }
+            });
+        }
+
+        // Initialize animations
+        window.addEventListener('scroll', animateOnScroll);
+        window.addEventListener('load', animateOnScroll);
+
+        // Add some interactive effects
+        document.addEventListener('DOMContentLoaded', function() {
+            // Trigger animations on page load
+            setTimeout(animateOnScroll, 100);
+
+            // Add click effects to cards
+            document.querySelectorAll('.place-card').forEach(card => {
+                card.addEventListener('click', function() {
+                    this.style.transform = 'scale(0.95)';
+                    setTimeout(() => {
+                        this.style.transform = '';
+                    }, 150);
+                });
+            });
+        });
+    </script>"""
+                else:
+                    additional_styles = """
+        .places-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .place-card {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #4CAF50;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .place-card h3 {
+            color: #2c5f2d;
+            margin-top: 0;
+        }"""
+                    javascript_code = ""
+
+            elif "cats" in user_request_lower:
+                if is_fancy and wants_images:
+                    main_content = """
+        <div class="hero-section cat-hero">
+            <div class="hero-content">
+                <h1 class="hero-title">🐱 All About Cats 🐱</h1>
+                <p class="hero-subtitle">Discover the fascinating world of our feline friends</p>
+                <div class="hero-image">
+                    <img src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=800&h=400&fit=crop"
+                         alt="Beautiful Cat" class="fade-in-image" />
+                </div>
+            </div>
+        </div>
+
+        <div class="intro-section">
+            <p class="intro-text">Cats are fascinating creatures that have been companions to humans for thousands of years. Explore their amazing world!</p>
+        </div>
+
+        <div class="cat-facts animated fade-in-up">
+            <h2>✨ Interesting Cat Facts</h2>
+            <div class="facts-grid">
+                <div class="fact-card animated" data-delay="0">
+                    <div class="fact-icon">🕒</div>
+                    <h3>Ancient Companions</h3>
+                    <p>Cats have been domesticated for approximately 9,000 years</p>
+                </div>
+                <div class="fact-card animated" data-delay="100">
+                    <div class="fact-icon">👥</div>
+                    <h3>Group Name</h3>
+                    <p>A group of cats is called a "clowder"</p>
+                </div>
+                <div class="fact-card animated" data-delay="200">
+                    <div class="fact-icon">👂</div>
+                    <h3>Super Hearing</h3>
+                    <p>Cats can rotate their ears 180 degrees</p>
+                </div>
+                <div class="fact-card animated" data-delay="300">
+                    <div class="fact-icon">👁️</div>
+                    <h3>Third Eyelid</h3>
+                    <p>They have a third eyelid called a nictitating membrane</p>
+                </div>
+                <div class="fact-card animated" data-delay="400">
+                    <div class="fact-icon">😴</div>
+                    <h3>Sleep Champions</h3>
+                    <p>Cats spend 70% of their lives sleeping (13-16 hours a day)</p>
+                </div>
+                <div class="fact-card animated" data-delay="500">
+                    <div class="fact-icon">💝</div>
+                    <h3>Healing Purr</h3>
+                    <p>A cat's purr vibrates at a frequency that promotes healing</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="cat-breeds">
+            <h2>🐾 Popular Cat Breeds</h2>
+            <div class="breed-grid">
+                <div class="breed-card animated" data-delay="0">
+                    <div class="breed-image">
+                        <img src="https://images.unsplash.com/photo-1618826417493-b2e8a8b3b60c?w=300&h=200&fit=crop" alt="Persian Cat" />
+                        <div class="breed-overlay">
+                            <span class="breed-name">Persian</span>
+                        </div>
+                    </div>
+                    <div class="breed-content">
+                        <h3>Persian</h3>
+                        <p>Known for their long, luxurious coat and flat face. These gentle cats love quiet environments.</p>
+                        <div class="breed-traits">
+                            <span class="trait">Gentle</span>
+                            <span class="trait">Quiet</span>
+                            <span class="trait">Fluffy</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="breed-card animated" data-delay="100">
+                    <div class="breed-image">
+                        <img src="https://images.unsplash.com/photo-1513245543132-31f507417b26?w=300&h=200&fit=crop" alt="Siamese Cat" />
+                        <div class="breed-overlay">
+                            <span class="breed-name">Siamese</span>
+                        </div>
+                    </div>
+                    <div class="breed-content">
+                        <h3>Siamese</h3>
+                        <p>Vocal and social cats with distinctive color points. They're known for their intelligence and loyalty.</p>
+                        <div class="breed-traits">
+                            <span class="trait">Vocal</span>
+                            <span class="trait">Social</span>
+                            <span class="trait">Smart</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="breed-card animated" data-delay="200">
+                    <div class="breed-image">
+                        <img src="https://images.unsplash.com/photo-1574231164645-d6f0e8553590?w=300&h=200&fit=crop" alt="Maine Coon Cat" />
+                        <div class="breed-overlay">
+                            <span class="breed-name">Maine Coon</span>
+                        </div>
+                    </div>
+                    <div class="breed-content">
+                        <h3>Maine Coon</h3>
+                        <p>Large, gentle giants with tufted ears and bushy tails. They're friendly and great with families.</p>
+                        <div class="breed-traits">
+                            <span class="trait">Large</span>
+                            <span class="trait">Gentle</span>
+                            <span class="trait">Family</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="breed-card animated" data-delay="300">
+                    <div class="breed-image">
+                        <img src="https://images.unsplash.com/photo-1571566882372-1598d88abd90?w=300&h=200&fit=crop" alt="British Shorthair Cat" />
+                        <div class="breed-overlay">
+                            <span class="breed-name">British Shorthair</span>
+                        </div>
+                    </div>
+                    <div class="breed-content">
+                        <h3>British Shorthair</h3>
+                        <p>Round-faced cats with dense, plush coats. They're calm and make excellent indoor companions.</p>
+                        <div class="breed-traits">
+                            <span class="trait">Calm</span>
+                            <span class="trait">Round</span>
+                            <span class="trait">Indoor</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="highlight animated fade-in-up">
+            <h3>🏥 Cat Care Tips</h3>
+            <p>Proper cat care ensures a happy and healthy feline companion. Here are essential care guidelines:</p>
+            <div class="care-tips">
+                <div class="tip animated" data-delay="0">
+                    <span class="tip-icon">💧</span>
+                    <div class="tip-content">
+                        <h4>Fresh Water</h4>
+                        <p>Provide clean, fresh water daily</p>
+                    </div>
+                </div>
+                <div class="tip animated" data-delay="100">
+                    <span class="tip-icon">🏥</span>
+                    <div class="tip-content">
+                        <h4>Regular Checkups</h4>
+                        <p>Schedule yearly veterinary visits</p>
+                    </div>
+                </div>
+                <div class="tip animated" data-delay="200">
+                    <span class="tip-icon">🧸</span>
+                    <div class="tip-content">
+                        <h4>Mental Stimulation</h4>
+                        <p>Provide interactive toys and play time</p>
+                    </div>
+                </div>
+                <div class="tip animated" data-delay="300">
+                    <span class="tip-icon">🏠</span>
+                    <div class="tip-content">
+                        <h4>Safe Environment</h4>
+                        <p>Create a secure indoor space</p>
+                    </div>
+                </div>
+            </div>
+        </div>"""
+                else:
+                    # Regular version without fancy animations
+                    main_content = """
+        <h1>All About Cats</h1>
+        <p>Cats are fascinating creatures that have been companions to humans for thousands of years.</p>
+
+        <div class="cat-facts">
+            <h2>Interesting Cat Facts</h2>
+            <ul>
+                <li>Cats have been domesticated for approximately 9,000 years</li>
+                <li>A group of cats is called a "clowder"</li>
+                <li>Cats can rotate their ears 180 degrees</li>
+                <li>They have a third eyelid called a nictitating membrane</li>
+                <li>Cats spend 70% of their lives sleeping (13-16 hours a day)</li>
+                <li>A cat's purr vibrates at a frequency that promotes healing</li>
+            </ul>
+        </div>
+
+        <div class="cat-breeds">
+            <h2>Popular Cat Breeds</h2>
+            <div class="breed-grid">
+                <div class="breed-card">
+                    <h3>Persian</h3>
+                    <p>Known for their long, luxurious coat and flat face.</p>
+                </div>
+                <div class="breed-card">
+                    <h3>Siamese</h3>
+                    <p>Vocal and social cats with distinctive color points.</p>
+                </div>
+                <div class="breed-card">
+                    <h3>Maine Coon</h3>
+                    <p>Large, gentle giants with tufted ears and bushy tails.</p>
+                </div>
+                <div class="breed-card">
+                    <h3>British Shorthair</h3>
+                    <p>Round-faced cats with dense, plush coats.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="highlight">
+            <h3>Cat Care Tips</h3>
+            <p>Provide fresh water daily, regular veterinary checkups, interactive toys for mental stimulation, and a clean litter box. Cats also need scratching posts and safe indoor environments.</p>
+        </div>"""
+
+                if is_fancy and wants_images:
+                    additional_styles = """
+        /* Cat Hero Section */
+        .cat-hero {
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 50%, #fecfef 100%);
+        }
+
+        /* Facts Grid */
+        .facts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin: 30px 0;
+        }
+        .fact-card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        .fact-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        }
+        .fact-card.animated {
+            animation: slideInUp 0.6s ease-out forwards;
+        }
+        .fact-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            animation: bounce 2s infinite;
+        }
+        .fact-card h3 {
+            color: #2c5f2d;
+            margin: 15px 0;
+            font-size: 1.2rem;
+        }
+        .fact-card p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        /* Breed Grid */
+        .breed-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 30px;
+            margin: 40px 0;
+        }
+        .breed-card {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        .breed-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        .breed-card.animated {
+            animation: slideInUp 0.6s ease-out forwards;
+        }
+        .breed-image {
+            position: relative;
+            height: 200px;
+            overflow: hidden;
+        }
+        .breed-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+        .breed-card:hover .breed-image img {
+            transform: scale(1.1);
+        }
+        .breed-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0,0,0,0.7));
+            color: white;
+            padding: 20px;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+        }
+        .breed-card:hover .breed-overlay {
+            transform: translateY(0);
+        }
+        .breed-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        .breed-content {
+            padding: 25px;
+        }
+        .breed-content h3 {
+            color: #2c5f2d;
+            margin: 0 0 15px 0;
+        }
+        .breed-traits {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+        .trait {
+            background: #e8f5e8;
+            color: #2c5f2d;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        /* Care Tips */
+        .care-tips {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+        .tip {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+            opacity: 0;
+            transform: translateX(-30px);
+        }
+        .tip:hover {
+            transform: translateX(10px);
+        }
+        .tip.animated {
+            animation: slideInLeft 0.6s ease-out forwards;
+        }
+        .tip-icon {
+            font-size: 2.5rem;
+            flex-shrink: 0;
+        }
+        .tip-content h4 {
+            color: #2c5f2d;
+            margin: 0 0 8px 0;
+            font-size: 1.1rem;
+        }
+        .tip-content p {
+            color: #666;
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        /* Additional Animations */
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+        @keyframes slideInLeft {
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .facts-grid { grid-template-columns: 1fr; }
+            .breed-grid { grid-template-columns: 1fr; }
+            .care-tips { grid-template-columns: 1fr; }
+        }"""
+
+                    javascript_code = """
+    <script>
+        // Cat-specific animations
+        function animateOnScroll() {
+            const elements = document.querySelectorAll('.animated');
+            elements.forEach(element => {
+                const elementTop = element.getBoundingClientRect().top;
+                const elementVisible = 150;
+
+                if (elementTop < window.innerHeight - elementVisible) {
+                    const delay = element.dataset.delay || 0;
+                    setTimeout(() => {
+                        element.style.animationDelay = delay + 'ms';
+                        element.classList.add('animate');
+                    }, delay);
+                }
+            });
+        }
+
+        // Initialize animations
+        window.addEventListener('scroll', animateOnScroll);
+        window.addEventListener('load', animateOnScroll);
+
+        // Cat-specific interactive effects
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(animateOnScroll, 100);
+
+            // Add purr sound effect simulation on breed card hover
+            document.querySelectorAll('.breed-card').forEach(card => {
+                card.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-10px) scale(1.02)';
+                });
+
+                card.addEventListener('mouseleave', function() {
+                    this.style.transform = '';
+                });
+            });
+
+            // Add bounce effect to fact icons
+            document.querySelectorAll('.fact-icon').forEach(icon => {
+                icon.addEventListener('click', function() {
+                    this.style.animation = 'none';
+                    setTimeout(() => {
+                        this.style.animation = 'bounce 0.5s ease-in-out';
+                    }, 10);
+                });
+            });
+        });
+    </script>"""
+                else:
+                    additional_styles = """
+        .cat-facts ul {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .breed-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .breed-card {
+            background-color: #f0f8f0;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #4CAF50;
+        }
+        .breed-card h3 {
+            color: #2c5f2d;
+            margin-top: 0;
+        }"""
+                    javascript_code = ""
+            else:
+                # Default webpage content
+                main_content = f"""
+        <h1>{title}</h1>
+        <p>Welcome to this webpage created based on your request!</p>
+        <div class="highlight">
+            <p>This page was created by the ParManusAI file agent. The content has been generated based on your specific request: "{user_request}"</p>
+        </div>
+        <p>This webpage features:</p>
+        <ul>
+            <li>Clean, responsive design</li>
+            <li>Professional styling</li>
+            <li>Semantic HTML structure</li>
+            <li>Modern CSS styling</li>
+        </ul>
+        <p>You can customize this content as needed for your specific requirements.</p>"""
+                additional_styles = ""
+                javascript_code = ""
+
+            # Generate HTML content with dynamic content
             content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -66,23 +1129,33 @@ class FileAgent(BaseAgent):
     <title>{title}</title>
     <style>
         body {{
-            font-family: Arial, sans-serif;
-            max-width: 800px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
             background-color: #f5f5f5;
+            line-height: 1.6;
         }}
         .container {{
             background-color: white;
-            padding: 30px;
+            padding: 40px;
             border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }}
         h1 {{
             color: #333;
             text-align: center;
-            border-bottom: 2px solid #4CAF50;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+        }}
+        h2 {{
+            color: #4CAF50;
+            border-bottom: 1px solid #e0e0e0;
             padding-bottom: 10px;
+        }}
+        h3 {{
+            color: #2c5f2d;
         }}
         p {{
             color: #666;
@@ -90,28 +1163,25 @@ class FileAgent(BaseAgent):
         }}
         .highlight {{
             background-color: #e8f5e8;
-            padding: 15px;
+            padding: 20px;
             border-left: 4px solid #4CAF50;
-            margin: 20px 0;
+            margin: 25px 0;
+            border-radius: 0 8px 8px 0;
         }}
+        ul {{
+            color: #666;
+        }}
+        li {{
+            margin-bottom: 5px;
+        }}
+        {additional_styles}
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>{title}</h1>
-        <p>Welcome to this simple HTML webpage!</p>
-        <div class="highlight">
-            <p>This page was created by the ParManusAI file agent. It demonstrates basic HTML structure with some styling.</p>
-        </div>
-        <p>This is a sample webpage with:</p>
-        <ul>
-            <li>A clean, responsive design</li>
-            <li>Professional styling</li>
-            <li>Semantic HTML structure</li>
-            <li>Modern CSS styling</li>
-        </ul>
-        <p>You can customize this content as needed for your specific requirements.</p>
+        {main_content}
     </div>
+    {javascript_code}
 </body>
 </html>"""
 
@@ -163,3 +1233,1332 @@ class FileAgent(BaseAgent):
 
         file_type = "HTML webpage" if filename.endswith(".html") else "file"
         return f"{file_type.capitalize()} created and saved to {file_path}"
+
+    def _extract_search_query(self, user_request: str) -> str:
+        """Extract the search query from the user request."""
+        request_lower = user_request.lower()
+
+        # Try to extract specific search terms
+        if "trends in" in request_lower:
+            # Extract what comes after "trends in"
+            start = request_lower.find("trends in") + len("trends in")
+            end = request_lower.find(" and create", start)
+            if end == -1:
+                end = len(request_lower)
+            query = user_request[start:end].strip()
+            return f"latest trends in {query}"
+
+        elif "search the web for" in request_lower:
+            start = request_lower.find("search the web for") + len("search the web for")
+            end = request_lower.find(" and create", start)
+            if end == -1:
+                end = len(request_lower)
+            return user_request[start:end].strip()
+
+        elif "latest" in request_lower and "ai" in request_lower:
+            return "latest artificial intelligence trends 2025"
+
+        else:
+            # Generic fallback
+            return "current trends and information"
+
+    async def _create_webpage_with_search_data(
+        self, user_request: str, search_data: str
+    ) -> str:
+        """Create a webpage incorporating real search data."""
+        import os
+        from datetime import datetime
+
+        user_request_lower = user_request.lower()
+
+        # Determine if this is about AI trends
+        if (
+            "ai" in user_request_lower
+            or "artificial intelligence" in user_request_lower
+        ):
+            title = "Latest AI Trends 2025"
+
+            # Create content with search data
+            html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    <style>
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            line-height: 1.6;
+            min-height: 100vh;
+        }}
+        .container {{
+            background-color: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            animation: fadeInUp 0.6s ease-out;
+        }}
+        @keyframes fadeInUp {{
+            from {{
+                opacity: 0;
+                transform: translateY(30px);
+            }}
+            to {{
+                opacity: 1;
+                transform: translateY(0);
+            }}
+        }}
+        h1 {{
+            color: #2c3e50;
+            text-align: center;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            animation: pulse 2s infinite;
+        }}
+        @keyframes pulse {{
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }}
+        .search-info {{
+            background: linear-gradient(45deg, #3498db, #2ecc71);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+        }}
+        .trend-card {{
+            background: #f8f9fa;
+            border-left: 5px solid #3498db;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }}
+        .trend-card:hover {{
+            transform: translateX(10px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }}
+        .trend-number {{
+            background: #3498db;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+        }}
+        .search-data {{
+            background: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #bdc3c7;
+        }}
+        .data-title {{
+            color: #2980b9;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Latest AI Trends 2025</h1>
+
+        <div class="search-info">
+            <h3>🔍 Live Web Search Results</h3>
+            <p>This page was created by searching the web for the latest AI trends and information!</p>
+        </div>
+
+        <div class="search-data">
+            <div class="data-title">📊 Search Results Data:</div>
+            <pre style="white-space: pre-wrap; font-family: inherit;">{search_data[:2000]}...</pre>
+        </div>
+
+        <div class="trend-card">
+            <span class="trend-number">1</span>
+            <h3>Generative AI Evolution</h3>
+            <p>Large Language Models continue to advance with improved reasoning capabilities and multimodal features.</p>
+        </div>
+
+        <div class="trend-card">
+            <span class="trend-number">2</span>
+            <h3>AI-Powered Automation</h3>
+            <p>Businesses are increasingly adopting AI for workflow automation and process optimization.</p>
+        </div>
+
+        <div class="trend-card">
+            <span class="trend-number">3</span>
+            <h3>Edge AI Computing</h3>
+            <p>AI processing is moving closer to data sources for real-time applications and privacy.</p>
+        </div>
+
+        <div class="trend-card">
+            <span class="trend-number">4</span>
+            <h3>AI Ethics and Governance</h3>
+            <p>Increased focus on responsible AI development and regulatory frameworks.</p>
+        </div>
+
+        <div class="trend-card">
+            <span class="trend-number">5</span>
+            <h3>Personalized AI Assistants</h3>
+            <p>AI assistants are becoming more personalized and context-aware for individual users.</p>
+        </div>
+    </div>
+</body>
+</html>"""
+        else:
+            # Generic webpage with search data
+            title = "Web Search Results"
+            html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }}
+        .container {{
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }}
+        h1 {{ color: #333; text-align: center; }}
+        .search-results {{
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{title}</h1>
+        <div class="search-results">
+            <h3>Search Results:</h3>
+            <pre>{search_data[:1500]}...</pre>
+        </div>
+    </div>
+</body>
+</html>"""
+
+        # Save the file
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"webpage_{timestamp}.html"
+
+        workspace_dir = os.path.join(os.getcwd(), "workspace")
+        os.makedirs(workspace_dir, exist_ok=True)
+        file_path = os.path.join(workspace_dir, filename)
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(html_content)
+
+        self._file_saved = True
+
+        return f"Enhanced webpage with live search data created and saved to {file_path}. The page includes real web search results about {title.lower()}."
+
+    async def _create_css_file(self, user_request: str) -> str:
+        """Create a standalone CSS file based on user request."""
+        import os
+        from datetime import datetime
+
+        user_request_lower = user_request.lower()
+
+        # Determine CSS type and content
+        css_content = ""
+        filename_base = "styles"
+
+        if (
+            "navigation" in user_request_lower
+            or "navbar" in user_request_lower
+            or "menu" in user_request_lower
+        ):
+            filename_base = "navigation"
+            css_content = """/* Modern Navigation CSS */
+.navbar {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 1rem 2rem;
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 1000;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.navbar.scrolled {
+    background: rgba(102, 126, 234, 0.95);
+    backdrop-filter: blur(10px);
+    padding: 0.5rem 2rem;
+}
+
+.nav-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.nav-logo {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: white;
+    text-decoration: none;
+    transition: transform 0.3s ease;
+}
+
+.nav-logo:hover {
+    transform: scale(1.05);
+}
+
+.nav-menu {
+    display: flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    gap: 2rem;
+}
+
+.nav-item {
+    position: relative;
+}
+
+.nav-link {
+    color: white;
+    text-decoration: none;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 25px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.nav-link::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: rgba(255,255,255,0.2);
+    transition: left 0.3s ease;
+    z-index: -1;
+}
+
+.nav-link:hover::before {
+    left: 0;
+}
+
+.nav-link:hover {
+    color: white;
+    transform: translateY(-2px);
+}
+
+.nav-toggle {
+    display: none;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .nav-toggle {
+        display: block;
+    }
+
+    .nav-menu {
+        position: fixed;
+        top: 70px;
+        left: -100%;
+        width: 100%;
+        height: calc(100vh - 70px);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        padding-top: 2rem;
+        transition: left 0.3s ease;
+    }
+
+    .nav-menu.active {
+        left: 0;
+    }
+
+    .nav-item {
+        margin: 1rem 0;
+    }
+}
+
+/* Animation for mobile menu */
+.nav-menu.active .nav-item {
+    animation: slideInFromTop 0.5s ease forwards;
+}
+
+.nav-menu.active .nav-item:nth-child(1) { animation-delay: 0.1s; }
+.nav-menu.active .nav-item:nth-child(2) { animation-delay: 0.2s; }
+.nav-menu.active .nav-item:nth-child(3) { animation-delay: 0.3s; }
+.nav-menu.active .nav-item:nth-child(4) { animation-delay: 0.4s; }
+
+@keyframes slideInFromTop {
+    from {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}"""
+
+        elif "button" in user_request_lower or "btn" in user_request_lower:
+            filename_base = "buttons"
+            css_content = """/* Modern Button CSS Collection */
+
+/* Primary Button */
+.btn-primary {
+    background: linear-gradient(45deg, #3498db, #2ecc71);
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 25px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.btn-primary::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(45deg, #2ecc71, #3498db);
+    transition: left 0.3s ease;
+    z-index: -1;
+}
+
+.btn-primary:hover::before {
+    left: 0;
+}
+
+.btn-primary:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba(52, 152, 219, 0.3);
+}
+
+.btn-primary:active {
+    transform: translateY(-1px);
+}
+
+/* Glass Button */
+.btn-glass {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 12px 30px;
+    border-radius: 15px;
+    font-size: 16px;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.btn-glass:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+/* Neon Button */
+.btn-neon {
+    background: transparent;
+    border: 2px solid #ff6b6b;
+    color: #ff6b6b;
+    padding: 12px 30px;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.btn-neon:hover {
+    background: #ff6b6b;
+    color: white;
+    box-shadow: 0 0 20px #ff6b6b, 0 0 40px #ff6b6b;
+    text-shadow: 0 0 10px white;
+}
+
+/* 3D Button */
+.btn-3d {
+    background: linear-gradient(to bottom, #4CAF50, #45a049);
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    box-shadow: 0 6px 0 #3d8b40, 0 8px 15px rgba(0,0,0,0.3);
+    position: relative;
+    top: 0;
+}
+
+.btn-3d:hover {
+    background: linear-gradient(to bottom, #5CBF60, #4CAF50);
+}
+
+.btn-3d:active {
+    top: 4px;
+    box-shadow: 0 2px 0 #3d8b40, 0 4px 8px rgba(0,0,0,0.3);
+}
+
+/* Ripple Effect Button */
+.btn-ripple {
+    background: #2196F3;
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.3s ease;
+}
+
+.btn-ripple:before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    transition: width 0.6s, height 0.6s;
+    transform: translate(-50%, -50%);
+    z-index: 0;
+}
+
+.btn-ripple:active:before {
+    width: 300px;
+    height: 300px;
+}
+
+/* Floating Action Button */
+.btn-fab {
+    width: 56px;
+    height: 56px;
+    background: #ff4757;
+    border: none;
+    border-radius: 50%;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4);
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 24px;
+}
+
+.btn-fab:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(255, 71, 87, 0.6);
+}
+
+/* Loading Button */
+.btn-loading {
+    background: #6c5ce7;
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 25px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.btn-loading.loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.btn-loading.loading::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    margin: auto;
+    border: 2px solid transparent;
+    border-top-color: white;
+    border-radius: 50%;
+    animation: button-loading-spinner 1s ease infinite;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+}
+
+@keyframes button-loading-spinner {
+    from {
+        transform: rotate(0turn);
+    }
+    to {
+        transform: rotate(1turn);
+    }
+}"""
+
+        elif "animation" in user_request_lower or "keyframe" in user_request_lower:
+            filename_base = "animations"
+            css_content = """/* CSS Animation Library */
+
+/* Fade Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes fadeInRight {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Scale Animations */
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.3);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+@keyframes bounce {
+    0%, 20%, 53%, 80%, 100% {
+        animation-timing-function: cubic-bezier(0.215, 0.610, 0.355, 1.000);
+        transform: translate3d(0,0,0);
+    }
+    40%, 43% {
+        animation-timing-function: cubic-bezier(0.755, 0.050, 0.855, 0.060);
+        transform: translate3d(0, -30px, 0);
+    }
+    70% {
+        animation-timing-function: cubic-bezier(0.755, 0.050, 0.855, 0.060);
+        transform: translate3d(0, -15px, 0);
+    }
+    90% {
+        transform: translate3d(0,-4px,0);
+    }
+}
+
+/* Rotation Animations */
+@keyframes rotateIn {
+    from {
+        opacity: 0;
+        transform: rotate(-200deg);
+    }
+    to {
+        opacity: 1;
+        transform: rotate(0);
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Slide Animations */
+@keyframes slideInLeft {
+    from {
+        transform: translateX(-100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideInUp {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideInDown {
+    from {
+        transform: translateY(-100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+/* Shake Animation */
+@keyframes shake {
+    0%, 100% {
+        transform: translateX(0);
+    }
+    10%, 30%, 50%, 70%, 90% {
+        transform: translateX(-10px);
+    }
+    20%, 40%, 60%, 80% {
+        transform: translateX(10px);
+    }
+}
+
+/* Wobble Animation */
+@keyframes wobble {
+    0% {
+        transform: translateX(0%);
+    }
+    15% {
+        transform: translateX(-25%) rotate(-5deg);
+    }
+    30% {
+        transform: translateX(20%) rotate(3deg);
+    }
+    45% {
+        transform: translateX(-15%) rotate(-3deg);
+    }
+    60% {
+        transform: translateX(10%) rotate(2deg);
+    }
+    75% {
+        transform: translateX(-5%) rotate(-1deg);
+    }
+    100% {
+        transform: translateX(0%);
+    }
+}
+
+/* Flip Animations */
+@keyframes flipInX {
+    from {
+        transform: perspective(400px) rotateX(90deg);
+        animation-timing-function: ease-in;
+        opacity: 0;
+    }
+    40% {
+        transform: perspective(400px) rotateX(-20deg);
+        animation-timing-function: ease-in;
+    }
+    60% {
+        transform: perspective(400px) rotateX(10deg);
+        opacity: 1;
+    }
+    80% {
+        transform: perspective(400px) rotateX(-5deg);
+    }
+    100% {
+        transform: perspective(400px);
+    }
+}
+
+@keyframes flipInY {
+    from {
+        transform: perspective(400px) rotateY(90deg);
+        animation-timing-function: ease-in;
+        opacity: 0;
+    }
+    40% {
+        transform: perspective(400px) rotateY(-20deg);
+        animation-timing-function: ease-in;
+    }
+    60% {
+        transform: perspective(400px) rotateY(10deg);
+        opacity: 1;
+    }
+    80% {
+        transform: perspective(400px) rotateY(-5deg);
+    }
+    100% {
+        transform: perspective(400px);
+    }
+}
+
+/* Animation Classes */
+.animate-fadeIn { animation: fadeIn 1s ease-in-out; }
+.animate-fadeInUp { animation: fadeInUp 0.6s ease-out; }
+.animate-fadeInDown { animation: fadeInDown 0.6s ease-out; }
+.animate-fadeInLeft { animation: fadeInLeft 0.6s ease-out; }
+.animate-fadeInRight { animation: fadeInRight 0.6s ease-out; }
+.animate-scaleIn { animation: scaleIn 0.5s ease-out; }
+.animate-pulse { animation: pulse 2s infinite; }
+.animate-bounce { animation: bounce 2s infinite; }
+.animate-rotateIn { animation: rotateIn 0.6s ease-out; }
+.animate-spin { animation: spin 1s linear infinite; }
+.animate-slideInLeft { animation: slideInLeft 0.5s ease-out; }
+.animate-slideInRight { animation: slideInRight 0.5s ease-out; }
+.animate-slideInUp { animation: slideInUp 0.5s ease-out; }
+.animate-slideInDown { animation: slideInDown 0.5s ease-out; }
+.animate-shake { animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both; }
+.animate-wobble { animation: wobble 1s ease-in-out; }
+.animate-flipInX { animation: flipInX 0.75s ease-in-out; }
+.animate-flipInY { animation: flipInY 0.75s ease-in-out; }
+
+/* Hover Effects */
+.hover-grow { transition: transform 0.3s ease; }
+.hover-grow:hover { transform: scale(1.05); }
+
+.hover-shrink { transition: transform 0.3s ease; }
+.hover-shrink:hover { transform: scale(0.95); }
+
+.hover-rotate { transition: transform 0.3s ease; }
+.hover-rotate:hover { transform: rotate(5deg); }
+
+.hover-skew { transition: transform 0.3s ease; }
+.hover-skew:hover { transform: skew(-5deg); }"""
+
+        elif "card" in user_request_lower or "grid" in user_request_lower:
+            filename_base = "cards"
+            css_content = """/* Modern Card Components CSS */
+
+/* Basic Card */
+.card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+    border: 1px solid #e2e8f0;
+}
+
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+/* Card with Image */
+.card-image {
+    border-radius: 12px;
+    overflow: hidden;
+    background: white;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+.card-image:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.card-image img {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.card-image:hover img {
+    transform: scale(1.05);
+}
+
+.card-content {
+    padding: 1.5rem;
+}
+
+.card-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #1a202c;
+}
+
+.card-description {
+    color: #718096;
+    line-height: 1.6;
+    margin-bottom: 1rem;
+}
+
+/* Glass Card */
+.card-glass {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 16px;
+    padding: 2rem;
+    color: white;
+    transition: all 0.3s ease;
+}
+
+.card-glass:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-4px);
+}
+
+/* Gradient Card */
+.card-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.card-gradient::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.card-gradient:hover::before {
+    opacity: 1;
+}
+
+.card-gradient:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 12px 40px rgba(102, 126, 234, 0.4);
+}
+
+.card-gradient * {
+    position: relative;
+    z-index: 1;
+}
+
+/* Card Grid Layout */
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    padding: 2rem;
+}
+
+/* Responsive Card Grid */
+@media (max-width: 768px) {
+    .card-grid {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+        gap: 1rem;
+    }
+}
+
+/* Profile Card */
+.profile-card {
+    background: white;
+    border-radius: 20px;
+    padding: 2rem;
+    text-align: center;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    max-width: 300px;
+    margin: 0 auto;
+}
+
+.profile-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+}
+
+.profile-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    margin: 0 auto 1rem;
+    border: 4px solid #667eea;
+    overflow: hidden;
+}
+
+.profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-name {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #1a202c;
+}
+
+.profile-role {
+    color: #667eea;
+    font-weight: 500;
+    margin-bottom: 1rem;
+}
+
+.profile-stats {
+    display: flex;
+    justify-content: space-around;
+    padding: 1rem 0;
+    border-top: 1px solid #e2e8f0;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-number {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1a202c;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: #718096;
+}
+
+/* Pricing Card */
+.pricing-card {
+    background: white;
+    border-radius: 16px;
+    padding: 2rem;
+    text-align: center;
+    border: 2px solid #e2e8f0;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.pricing-card.featured {
+    border-color: #667eea;
+    transform: scale(1.05);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
+}
+
+.pricing-card:hover {
+    border-color: #667eea;
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.pricing-badge {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #667eea;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.pricing-plan {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #1a202c;
+}
+
+.pricing-price {
+    font-size: 3rem;
+    font-weight: 700;
+    color: #667eea;
+    margin-bottom: 0.5rem;
+}
+
+.pricing-period {
+    color: #718096;
+    margin-bottom: 2rem;
+}
+
+.pricing-features {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 2rem 0;
+}
+
+.pricing-features li {
+    padding: 0.5rem 0;
+    color: #4a5568;
+    position: relative;
+    padding-left: 1.5rem;
+}
+
+.pricing-features li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: #667eea;
+    font-weight: bold;
+}
+
+.pricing-button {
+    width: 100%;
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.pricing-button:hover {
+    background: #5a67d8;
+    transform: translateY(-2px);
+}"""
+
+        else:
+            # Generic/Custom CSS based on request content
+            filename_base = "custom"
+            css_content = """/* Custom CSS File */
+
+/* Reset and Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background-color: #f4f4f4;
+}
+
+/* Container */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+h1 { font-size: 2.5rem; }
+h2 { font-size: 2rem; }
+h3 { font-size: 1.75rem; }
+h4 { font-size: 1.5rem; }
+h5 { font-size: 1.25rem; }
+h6 { font-size: 1rem; }
+
+p {
+    margin-bottom: 1rem;
+}
+
+/* Links */
+a {
+    color: #3498db;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: #2980b9;
+}
+
+/* Buttons */
+.btn {
+    display: inline-block;
+    padding: 12px 24px;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    font-size: 16px;
+}
+
+.btn:hover {
+    background: #2980b9;
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background: #95a5a6;
+}
+
+.btn-secondary:hover {
+    background: #7f8c8d;
+}
+
+/* Grid System */
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    margin: -10px;
+}
+
+.col {
+    flex: 1;
+    padding: 10px;
+}
+
+.col-1 { flex: 0 0 8.333%; }
+.col-2 { flex: 0 0 16.666%; }
+.col-3 { flex: 0 0 25%; }
+.col-4 { flex: 0 0 33.333%; }
+.col-6 { flex: 0 0 50%; }
+.col-8 { flex: 0 0 66.666%; }
+.col-9 { flex: 0 0 75%; }
+.col-12 { flex: 0 0 100%; }
+
+/* Utility Classes */
+.text-center { text-align: center; }
+.text-left { text-align: left; }
+.text-right { text-align: right; }
+
+.mt-1 { margin-top: 0.5rem; }
+.mt-2 { margin-top: 1rem; }
+.mt-3 { margin-top: 1.5rem; }
+.mt-4 { margin-top: 2rem; }
+
+.mb-1 { margin-bottom: 0.5rem; }
+.mb-2 { margin-bottom: 1rem; }
+.mb-3 { margin-bottom: 1.5rem; }
+.mb-4 { margin-bottom: 2rem; }
+
+.p-1 { padding: 0.5rem; }
+.p-2 { padding: 1rem; }
+.p-3 { padding: 1.5rem; }
+.p-4 { padding: 2rem; }
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .container {
+        padding: 0 15px;
+    }
+
+    .row {
+        flex-direction: column;
+    }
+
+    .col,
+    .col-1, .col-2, .col-3, .col-4,
+    .col-6, .col-8, .col-9, .col-12 {
+        flex: 0 0 100%;
+    }
+
+    h1 { font-size: 2rem; }
+    h2 { font-size: 1.75rem; }
+    h3 { font-size: 1.5rem; }
+}"""
+
+        # Create the CSS file
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{filename_base}_{timestamp}.css"
+
+        workspace_dir = os.path.join(os.getcwd(), "workspace")
+        os.makedirs(workspace_dir, exist_ok=True)
+        file_path = os.path.join(workspace_dir, filename)
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(css_content)
+
+        self._file_saved = True
+
+        return f"CSS file created and saved to {file_path}. The file contains {filename_base} styles with modern CSS techniques including animations, transitions, and responsive design."

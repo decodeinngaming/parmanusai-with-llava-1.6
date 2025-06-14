@@ -301,10 +301,25 @@ class Manus(ToolCallAgent):
 
             # Extract search intent from the message
             search_query = actual_query
-            if "news" in content:
-                # Clean up the query for news searches
+            if "news" in content and not any(
+                specific in content.lower()
+                for specific in ["artificial intelligence", "ai", "tech", "technology"]
+            ):
+                # Only default to generic news if it's a general news request
                 search_query = "top 10 latest news today"
-            elif "top" in content and ("news" in content or "latest" in content):
+            elif (
+                "top" in content
+                and ("news" in content or "latest" in content)
+                and not any(
+                    specific in content.lower()
+                    for specific in [
+                        "artificial intelligence",
+                        "ai",
+                        "tech",
+                        "technology",
+                    ]
+                )
+            ):
                 search_query = "top 10 latest news today"
             else:
                 # Use the actual query, but clean it up

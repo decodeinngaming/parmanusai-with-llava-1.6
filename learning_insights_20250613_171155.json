@@ -1,0 +1,33 @@
+{
+  "export_timestamp": "2025-06-13T17:11:55.423217",
+  "performance_insights": {
+    "overall_success_rate": 0.9333333333333333,
+    "avg_execution_time": 2.5933333333333333,
+    "total_tasks": 15,
+    "agent_performance": {
+      "file": {
+        "success_rate": 1.0,
+        "avg_execution_time": 2.3615384615384616,
+        "total_tasks": 13
+      },
+      "router_to_file": {
+        "success_rate": 1.0,
+        "avg_execution_time": 0.0,
+        "total_tasks": 1
+      },
+      "browser": {
+        "success_rate": 0.0,
+        "avg_execution_time": 8.2,
+        "total_tasks": 1
+      }
+    },
+    "improvement_patterns": 4,
+    "last_updated": "2025-06-13T17:11:55.423217"
+  },
+  "recommendations": [
+    "Agent 'browser' needs improvement - low success rate"
+  ],
+  "system_suggestions": [
+    "Review and improve browser agent implementation"
+  ]
+}

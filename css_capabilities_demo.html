@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ParManusAI CSS Generation Capabilities Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .section {
+            margin: 40px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border-left: 5px solid #667eea;
+        }
+
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+        }
+
+        .capability-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .capability-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .css-type {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .code-snippet {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        .demo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .feature-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: scale(1.05);
+        }
+
+        .checkmark {
+            color: #27ae60;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .highlight {
+            background: linear-gradient(45deg, #f39c12, #e74c3c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🎨 ParManusAI CSS Generation Capabilities</h1>
+
+        <div class="section">
+            <h2>📝 What the Agent Can Generate</h2>
+            <p>The ParManusAI agent has advanced CSS generation capabilities built into its file agent. Here's what it
+                can create:</p>
+
+            <div class="demo-grid">
+                <div class="feature-card">
+                    <h3>🧭 Navigation CSS</h3>
+                    <p>Modern responsive navigation bars with animations</p>
+                </div>
+                <div class="feature-card">
+                    <h3>🔘 Button Styles</h3>
+                    <p>Collection of modern button designs with effects</p>
+                </div>
+                <div class="feature-card">
+                    <h3>✨ Animations</h3>
+                    <p>CSS keyframe animations and transitions</p>
+                </div>
+                <div class="feature-card">
+                    <h3>🃏 Card Components</h3>
+                    <p>Modern card layouts and components</p>
+                </div>
+                <div class="feature-card">
+                    <h3>🎯 Custom Styles</h3>
+                    <p>Tailored CSS based on specific requirements</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🎯 CSS File Types the Agent Can Create</h2>
+
+            <div class="capability-item">
+                <div class="css-type">Navigation/Menu CSS</div>
+                <p><span class="checkmark">✓</span>Responsive navigation bars</p>
+                <p><span class="checkmark">✓</span>Mobile hamburger menus</p>
+                <p><span class="checkmark">✓</span>Scroll effects and backdrop blur</p>
+                <p><span class="checkmark">✓</span>Hover animations and transitions</p>
+                <div class="code-snippet">
+                    User Request: "Create a CSS file for navigation"
+                    Generated File: navigation_[timestamp].css
+                </div>
+            </div>
+
+            <div class="capability-item">
+                <div class="css-type">Button Collection CSS</div>
+                <p><span class="checkmark">✓</span>Primary, Glass, Neon, 3D buttons</p>
+                <p><span class="checkmark">✓</span>Ripple effects and loading states</p>
+                <p><span class="checkmark">✓</span>Floating action buttons</p>
+                <p><span class="checkmark">✓</span>Hover and click animations</p>
+                <div class="code-snippet">
+                    User Request: "Create CSS for modern buttons"
+                    Generated File: buttons_[timestamp].css
+                </div>
+            </div>
+
+            <div class="capability-item">
+                <div class="css-type">Animation Library CSS</div>
+                <p><span class="checkmark">✓</span>Fade, Scale, Rotate animations</p>
+                <p><span class="checkmark">✓</span>Bounce, Pulse, Shake effects</p>
+                <p><span class="checkmark">✓</span>Loading spinners and progress bars</p>
+                <p><span class="checkmark">✓</span>Keyframe animations</p>
+                <div class="code-snippet">
+                    User Request: "Create CSS animations"
+                    Generated File: animations_[timestamp].css
+                </div>
+            </div>
+
+            <div class="capability-item">
+                <div class="css-type">Card Components CSS</div>
+                <p><span class="checkmark">✓</span>Product cards, Profile cards</p>
+                <p><span class="checkmark">✓</span>Flip cards with 3D effects</p>
+                <p><span class="checkmark">✓</span>Glass morphism and gradients</p>
+                <p><span class="checkmark">✓</span>Responsive grid layouts</p>
+                <div class="code-snippet">
+                    User Request: "Create CSS for card components"
+                    Generated File: cards_[timestamp].css
+                </div>
+            </div>
+
+            <div class="capability-item">
+                <div class="css-type">Custom CSS</div>
+                <p><span class="checkmark">✓</span>Tailored to specific requirements</p>
+                <p><span class="checkmark">✓</span>Custom color schemes and themes</p>
+                <p><span class="checkmark">✓</span>Responsive utilities</p>
+                <p><span class="checkmark">✓</span>Modern design patterns</p>
+                <div class="code-snippet">
+                    User Request: "Create custom CSS for [specific requirement]"
+                    Generated File: styles_[timestamp].css
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🚀 How to Use CSS Generation</h2>
+            <p>Simply ask the agent to create CSS files with prompts like:</p>
+            <ul>
+                <li><span class="highlight">"Create a CSS file for navigation"</span></li>
+                <li><span class="highlight">"Generate modern button styles in CSS"</span></li>
+                <li><span class="highlight">"Create CSS animations"</span></li>
+                <li><span class="highlight">"Make a CSS file for card components"</span></li>
+                <li><span class="highlight">"Create custom CSS for a dark theme"</span></li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>✨ Key Features</h2>
+            <div class="demo-grid">
+                <div class="capability-item">
+                    <h3>🎨 Modern Design</h3>
+                    <p>All CSS follows modern design principles with gradients, shadows, and smooth animations</p>
+                </div>
+                <div class="capability-item">
+                    <h3>📱 Responsive</h3>
+                    <p>Mobile-first approach with responsive breakpoints and flexible layouts</p>
+                </div>
+                <div class="capability-item">
+                    <h3>⚡ Performance</h3>
+                    <p>Optimized CSS with efficient selectors and minimal reflows</p>
+                </div>
+                <div class="capability-item">
+                    <h3>🔧 Customizable</h3>
+                    <p>Easy to modify and extend with CSS custom properties</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📁 File Output</h2>
+            <p>Generated CSS files are saved with descriptive names and timestamps:</p>
+            <div class="code-snippet">
+                Workspace Location: f:\ParManusAI-optimized-version\workspace\
+                File Format: [type]_[timestamp].css
+
+                Examples:
+                - navigation_20250613_170015.css
+                - buttons_20250613_170016.css
+                - animations_20250613_170017.css
+                - cards_20250613_170018.css
+                - styles_20250613_170019.css
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🎉 Conclusion</h2>
+            <p>The ParManusAI agent provides comprehensive CSS generation capabilities, allowing you to quickly create
+                modern, responsive stylesheets for any web project. The agent automatically detects CSS-related requests
+                and generates appropriate files with professional-quality code.</p>
+        </div>
+    </div>
+</body>
+
+</html>

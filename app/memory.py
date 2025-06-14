@@ -138,6 +138,63 @@ class Memory:
         self.messages.clear()
         logger.info("Memory cleared")
 
+    def get_memory_size(self) -> Dict[str, int]:
+        """Get memory usage statistics."""
+        total_messages = len(self.messages)
+        total_chars = sum(len(msg.content) for msg in self.messages)
+        estimated_tokens = total_chars // 4  # Rough token estimation
+
+        return {
+            "total_messages": total_messages,
+            "total_chars": total_chars,
+            "estimated_tokens": estimated_tokens,
+        }
+
+    def compress_memory(self, max_messages: int = 15, preserve_recent: int = 8) -> None:
+        """Compress memory by keeping only essential and recent messages.
+
+        Args:
+            max_messages: Maximum number of messages to keep
+            preserve_recent: Number of recent messages to always preserve
+        """
+        if len(self.messages) <= max_messages:
+            return
+
+        logger.info(
+            f"Compressing memory from {len(self.messages)} to {max_messages} messages"
+        )
+
+        # Separate messages by type
+        system_messages = [msg for msg in self.messages if msg.role == "system"]
+        user_messages = [msg for msg in self.messages if msg.role == "user"]
+        assistant_messages = [msg for msg in self.messages if msg.role == "assistant"]
+
+        # Keep essential system messages (first one typically contains the main prompt)
+        essential_messages = system_messages[:1] if system_messages else []
+
+        # Keep the most recent messages
+        recent_messages = (
+            self.messages[-preserve_recent:]
+            if len(self.messages) > preserve_recent
+            else self.messages
+        )
+
+        # Clear and rebuild with compressed content
+        self.clear()
+
+        # Add essential messages first
+        for msg in essential_messages:
+            self.add_message(msg)
+
+        # Add recent messages (avoid duplicates)
+        added_content = {msg.content for msg in essential_messages}
+        for msg in recent_messages:
+            if msg.content not in added_content:
+                self.add_message(msg)
+                added_content.add(msg.content)
+
+        logger.info(f"Memory compressed to {len(self.messages)} messages")
+
     def save_session(self, filename: Optional[str] = None) -> None:
         """Save the current session to disk.
 

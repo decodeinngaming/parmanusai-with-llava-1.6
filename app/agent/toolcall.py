@@ -166,37 +166,120 @@ class ToolCallAgent(ReActAgent):
 
         # PATCH: If still no tool calls and the prompt is a browser/navigation task, insert a default tool call
         if not tool_calls:
-            # Try to infer from the latest user message and the current task
-            last_user_msg = None
-            for msg in reversed(self.messages):
-                if msg.role == "user":
-                    last_user_msg = msg.content.lower()
-                    break
+            # Get the actual user query - check all sources
+            original_user_query = None
 
-            # Also get the current task being processed (for browser agent)
-            current_task = None
-            if (
+            # Method 1: Check if we have access to the agent's original user request
+            if hasattr(self, "original_user_request") and self.original_user_request:
+                original_user_query = self.original_user_request.strip()
+                logger.info(f"📝 Found original user request: {original_user_query}")
+
+            # Method 2: Check memory for the first real user message (not system instructions)
+            elif (
                 hasattr(self, "memory")
                 and self.memory
                 and hasattr(self.memory, "messages")
             ):
-                user_messages = [
-                    msg for msg in self.memory.messages if msg.role == "user"
-                ]
-                if user_messages:
-                    current_task = user_messages[0].content.lower()
+                for msg in self.memory.messages:
+                    if msg.role == "user":
+                        content = msg.content
+                        # Skip if it's system instructions or empty
+                        if content and not any(
+                            system_text in content.lower()
+                            for system_text in [
+                                "when you see [current state starts here]",
+                                "focus on the following:",
+                                "for browser interactions:",
+                                "be methodical",
+                                "if you want to stop",
+                                "what should i do next",
+                                "current url and page title",
+                                "available tabs",
+                                "interactive elements",
+                                "choose the most appropriate action",
+                                "to navigate:",
+                                "to click:",
+                                "to type:",
+                                "to extract:",
+                                "to scroll:",
+                                "consider both what's visible",
+                            ]
+                        ):
+                            original_user_query = content.strip()
+                            logger.info(
+                                f"📝 Found user query from memory: {original_user_query}"
+                            )
+                            break
 
-            # Check both the last user message and current task for patterns
-            text_to_check = f"{last_user_msg or ''} {current_task or ''}".strip()
+            # Method 3: Check recent messages for actual user query
+            if not original_user_query:
+                for msg in reversed(self.messages):
+                    if msg.role == "user":
+                        content = msg.content
+                        # Skip if it's system instructions
+                        if content and not any(
+                            system_text in content.lower()
+                            for system_text in [
+                                "when you see [current state starts here]",
+                                "focus on the following:",
+                                "for browser interactions:",
+                                "be methodical",
+                                "if you want to stop",
+                                "what should i do next",
+                                "current url and page title",
+                                "available tabs",
+                                "interactive elements",
+                                "choose the most appropriate action",
+                                "to navigate:",
+                                "to click:",
+                                "to type:",
+                                "to extract:",
+                                "to scroll:",
+                                "consider both what's visible",
+                            ]
+                        ):
+                            original_user_query = content.strip()
+                            logger.info(
+                                f"📝 Found user query from recent messages: {original_user_query}"
+                            )
+                            break
+
+            # Use the original user query
+            text_to_check = original_user_query or ""
+
+            # Debug logging
+            logger.info(f"🔍 Query extraction result: '{text_to_check}'")
+
             if text_to_check:
                 import re
 
-                # 1. Navigation
-                url_match = re.search(
+                # 1. Direct site navigation (GitHub, known sites)
+                if "github" in text_to_check.lower():
+                    url = "https://github.com"
+                    tool_calls = [
+                        {
+                            "id": "default_browser_use_github",
+                            "type": "function",
+                            "function": {
+                                "name": "browser_use",
+                                "arguments": json.dumps(
+                                    {"action": "go_to_url", "url": url}
+                                ),
+                            },
+                        }
+                    ]
+                    logger.warning(
+                        f"⚠️ No tool call from LLM, navigating directly to GitHub: {url}"
+                    )
+                # 2. URL pattern detection
+                elif re.search(
                     r"(?:go to|visit|open) (https?://)?([\w.-]+\.[a-z]{2,})(/\S*)?",
                     text_to_check,
-                )
-                if url_match:
+                ):
+                    url_match = re.search(
+                        r"(?:go to|visit|open) (https?://)?([\w.-]+\.[a-z]{2,})(/\S*)?",
+                        text_to_check,
+                    )
                     url = url_match.group(2)
                     if not url_match.group(1):
                         url = "https://" + url
@@ -217,21 +300,40 @@ class ToolCallAgent(ReActAgent):
                     logger.warning(
                         f"⚠️ No tool call from LLM, inserting default browser_use tool call for URL: {url}"
                     )
-                # 2. News search (check this before general extract to prioritize)
+                # 3. AI and Technology news search (specific pattern)
                 elif any(
-                    word in text_to_check
+                    word in text_to_check.lower()
                     for word in [
-                        "news",
-                        "latest news",
-                        "search for latest news",
-                        "search for news",
+                        "artificial intelligence",
+                        "ai news",
+                        "artificial intelligence news",
+                        "machine learning news",
+                        "tech news",
+                        "technology news",
+                        "ai",
+                        "look at the web for",
+                        "web for artificial",
                     ]
                 ) or (
-                    "search" in text_to_check
+                    "news" in text_to_check.lower()
                     and any(
-                        word in text_to_check for word in ["latest", "today", "current"]
+                        word in text_to_check.lower()
+                        for word in [
+                            "artificial",
+                            "intelligence",
+                            "ai",
+                            "tech",
+                            "technology",
+                        ]
                     )
                 ):
+                    # Use the actual user query instead of hardcoded "latest news today"
+                    search_query = text_to_check.strip()
+                    if not search_query:
+                        search_query = (
+                            "latest news today"  # fallback only if no query found
+                        )
+
                     tool_calls = [
                         {
                             "id": "default_browser_use_search",
@@ -241,16 +343,57 @@ class ToolCallAgent(ReActAgent):
                                 "arguments": json.dumps(
                                     {
                                         "action": "web_search",
-                                        "query": "latest news today",
+                                        "query": search_query,
                                     }
                                 ),
                             },
                         }
                     ]
                     logger.warning(
-                        "⚠️ No tool call from LLM, inserting browser_use tool call for web_search"
+                        f"⚠️ No tool call from LLM, inserting browser_use tool call for AI/tech search with query: {search_query}"
                     )
-                # 3. Summarize or extract content (after news check)
+                # 4. General news search (fallback for other news queries)
+                elif any(
+                    word in text_to_check.lower()
+                    for word in [
+                        "news",
+                        "latest news",
+                        "search for latest news",
+                        "search for news",
+                    ]
+                ) or (
+                    "search" in text_to_check.lower()
+                    and any(
+                        word in text_to_check.lower()
+                        for word in ["latest", "today", "current"]
+                    )
+                ):
+                    # Use the actual user query instead of hardcoded "latest news today"
+                    search_query = text_to_check.strip()
+                    if not search_query:
+                        search_query = (
+                            "latest news today"  # fallback only if no query found
+                        )
+
+                    tool_calls = [
+                        {
+                            "id": "default_browser_use_general_news",
+                            "type": "function",
+                            "function": {
+                                "name": "browser_use",
+                                "arguments": json.dumps(
+                                    {
+                                        "action": "web_search",
+                                        "query": search_query,
+                                    }
+                                ),
+                            },
+                        }
+                    ]
+                    logger.warning(
+                        f"⚠️ No tool call from LLM, inserting browser_use tool call for general news search with query: {search_query}"
+                    )
+                # 5. Summarize or extract content (after news checks)
                 elif any(
                     word in text_to_check
                     for word in [
@@ -278,8 +421,22 @@ class ToolCallAgent(ReActAgent):
                     logger.warning(
                         "⚠️ No tool call from LLM, inserting browser_use tool call for extract_content"
                     )
-                # 4. General search for non-news items
-                elif "search" in text_to_check:
+                # 6. General search for non-news items (including AI and other topics)
+                elif any(
+                    word in text_to_check
+                    for word in [
+                        "search",
+                        "find",
+                        "look for",
+                        "look at",
+                        "artificial intelligence",
+                        "ai",
+                        "machine learning",
+                        "technology",
+                        "web for",
+                        "internet for",
+                    ]
+                ):
                     tool_calls = [
                         {
                             "id": "default_browser_use_search_general",
@@ -295,7 +452,7 @@ class ToolCallAgent(ReActAgent):
                     logger.warning(
                         "⚠️ No tool call from LLM, inserting browser_use tool call for general web_search"
                     )
-                # 5. Save/download page
+                # 7. Save/download page
                 elif any(word in text_to_check for word in ["save", "download"]):
                     tool_calls = [
                         {
@@ -342,9 +499,14 @@ class ToolCallAgent(ReActAgent):
                     logger.warning(
                         "⚠️ No tool call from LLM, inserting default browser_use tool call for about:blank (open blank page)"
                     )
-                # Final fallback: if no conditions matched and it's a browser agent, default to news search
+                # Final fallback: if no conditions matched and it's a browser agent, use the actual user query
                 else:
                     if self.name == "browser":
+                        # Use the actual user query instead of hardcoded "latest news today"
+                        search_query = text_to_check.strip()
+                        if not search_query:
+                            search_query = "latest news today"  # only fallback if absolutely no query found
+
                         tool_calls = [
                             {
                                 "id": "default_browser_use_news",
@@ -354,14 +516,14 @@ class ToolCallAgent(ReActAgent):
                                     "arguments": json.dumps(
                                         {
                                             "action": "web_search",
-                                            "query": "latest news today",
+                                            "query": search_query,
                                         }
                                     ),
                                 },
                             }
                         ]
                         logger.warning(
-                            "⚠️ No tool call from LLM and no conditions matched, defaulting to news search"
+                            f"⚠️ No tool call from LLM and no conditions matched, using user query: {search_query}"
                         )
         # Convert dictionary tool calls to proper ToolCall objects
         if tool_calls and isinstance(tool_calls[0], dict):

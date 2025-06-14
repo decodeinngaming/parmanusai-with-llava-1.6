@@ -49,7 +49,27 @@ class AgentRouter:
         if agent_name not in self.agents or self.agents[agent_name] is None:
             self.agents[agent_name] = await self._create_agent(agent_name)
 
-        self.current_agent = self.agents[agent_name]
+        # If switching agents or reusing the same agent, ensure proper state reset
+        selected_agent = self.agents[agent_name]
+
+        # Reset agent state for new task to prevent context overflow
+        if self.current_agent != selected_agent or (
+            hasattr(selected_agent, "memory")
+            and hasattr(selected_agent.memory, "get_memory_size")
+            and selected_agent.memory.get_memory_size()["total_messages"] > 0
+        ):
+
+            logger.info(
+                f"Resetting agent state for new task (switching from {self.current_agent.name if self.current_agent else 'None'} to {agent_name})"
+            )
+
+            # Trigger agent state reset
+            if hasattr(selected_agent, "reset_state"):
+                await selected_agent.reset_state()
+            elif hasattr(selected_agent, "_reset_state"):
+                selected_agent._reset_state()
+
+        self.current_agent = selected_agent
         logger.info(f"Routed query to {agent_name} agent")
         return self.current_agent
 
@@ -67,7 +87,40 @@ class AgentRouter:
         # Log the query for debugging
         logger.info(f"Analyzing query for routing: {query}")
 
-        # File creation keywords (check first before browser keywords)
+        # Check for browser navigation + file creation tasks first
+        browser_navigation_keywords = [
+            "go to",
+            "visit",
+            "navigate to",
+            "open",
+            "browse to",
+            "look at",
+            "check out",
+        ]
+
+        # If it's a navigation task that also involves creation, route to browser
+        if any(
+            nav_keyword in query_lower for nav_keyword in browser_navigation_keywords
+        ):
+            # Check for website patterns
+            import re
+
+            website_patterns = [
+                r"\b\w+\.com\b",
+                r"\b\w+\.org\b",
+                r"\b\w+\.net\b",
+                r"facebook",
+                r"google",
+                r"twitter",
+                r"youtube",
+            ]
+            if any(re.search(pattern, query_lower) for pattern in website_patterns):
+                logger.info(
+                    "Routing to browser agent based on navigation + website keywords"
+                )
+                return "browser"
+
+        # File creation keywords (check after browser navigation)
         file_creation_keywords = [
             "create",
             "make",
@@ -83,12 +136,15 @@ class AgentRouter:
             "make webpage",
         ]
 
-        # Check for file creation patterns first
+        # Check for file creation patterns (only if not a navigation task)
         if any(keyword in query_lower for keyword in file_creation_keywords):
-            # Check if it's specifically about creating files
+            # Check if it's specifically about creating files (and not navigating to websites)
             if any(
                 file_word in query_lower
                 for file_word in ["file", "save", "create", "write", "make", "build"]
+            ) and not any(
+                nav_keyword in query_lower
+                for nav_keyword in browser_navigation_keywords
             ):
                 logger.info("Routing to file agent based on file creation keywords")
                 return "file"

@@ -260,12 +260,33 @@ class BaseAgent(BaseModel, ABC):
         """Execute the agent's main loop with enhanced error handling and monitoring."""
         logger.info(f"Agent {self.name} run() method started")
 
+        # Allow reuse of agent by resetting state if it's finished
+        if self.state == AgentState.FINISHED:
+            logger.info(
+                f"Agent {self.name} was finished, resetting to IDLE for new request"
+            )
+            self.state = AgentState.IDLE
+            self.current_step = 0  # Reset step counter for new task
+            # Clear any stuck state tracking that might interfere
+            if hasattr(self, "_previous_results"):
+                self._previous_results.clear()
+            if hasattr(self, "circuit_breaker"):
+                self.circuit_breaker.call_succeeded()  # Reset circuit breaker
+            # Call agent-specific reset method if it exists
+            if hasattr(self, "reset_for_new_task"):
+                self.reset_for_new_task()
+            # Aggressively clear memory to prevent context overflow on task switching
+            self._clear_memory_for_new_task()
+
         if self.state != AgentState.IDLE:
             raise RuntimeError(f"Cannot run agent from state: {self.state}")
 
         if request:
             self.update_memory("user", request)
             logger.info(f"Added user request to memory: {request[:100]}...")
+
+        # Check and manage memory before starting execution
+        self._check_and_manage_memory()
 
         results: List[str] = []
         start_time = time.time()
@@ -465,3 +486,69 @@ class BaseAgent(BaseModel, ABC):
     def messages(self, value: List[Message]):
         """Set the list of messages in the agent's memory."""
         self.memory.messages = value
+
+    def _clear_memory_for_new_task(self):
+        """Aggressively clear memory to prevent context overflow when starting a new task."""
+        try:
+            # Get memory stats before clearing
+            memory_stats = self.memory.get_memory_size()
+            logger.info(f"Memory before clearing: {memory_stats}")
+
+            # Preserve only essential system messages
+            system_messages = [
+                msg for msg in self.memory.messages if msg.role == "system"
+            ]
+
+            # Clear all memory
+            self.memory.clear()
+
+            # Restore only the most essential system message (main prompt)
+            if system_messages:
+                # Keep only the first system message to maintain context without bloat
+                self.memory.add_message(system_messages[0])
+                logger.info(
+                    f"Preserved 1 essential system message, cleared {memory_stats['total_messages'] - 1} other messages for new task"
+                )
+            else:
+                logger.info(
+                    "Cleared all memory for new task - no system messages to preserve"
+                )
+
+            # Log final memory state
+            final_stats = self.memory.get_memory_size()
+            logger.info(f"Memory after clearing: {final_stats}")
+
+        except Exception as e:
+            logger.warning(f"Error clearing memory for new task: {e}")
+            # Fallback: just clear everything
+            self.memory.clear()
+
+    def _check_and_manage_memory(self, max_tokens: int = 3000, max_messages: int = 20):
+        """Check memory usage and compress if necessary."""
+        try:
+            memory_stats = self.memory.get_memory_size()
+
+            if (
+                memory_stats["estimated_tokens"] > max_tokens
+                or memory_stats["total_messages"] > max_messages
+            ):
+
+                logger.warning(
+                    f"Memory limit approaching: {memory_stats['estimated_tokens']} tokens, "
+                    f"{memory_stats['total_messages']} messages"
+                )
+
+                # Compress memory aggressively
+                self.memory.compress_memory(
+                    max_messages=max_messages // 2, preserve_recent=6
+                )
+
+                # Log compression results
+                new_stats = self.memory.get_memory_size()
+                logger.info(
+                    f"Memory compressed from {memory_stats['estimated_tokens']} to "
+                    f"{new_stats['estimated_tokens']} tokens"
+                )
+
+        except Exception as e:
+            logger.warning(f"Error managing memory: {e}")

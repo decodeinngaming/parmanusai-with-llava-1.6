@@ -16,9 +16,9 @@ CRITICAL INSTRUCTIONS:
    function: tool_name(param1="value1", param2="value2")
 
 5. IMPORTANT: For these specific requests, ALWAYS use the browser_use tool:
-   - When asked to search for information: function: browser_use(action="web_search", query="your search query")
-   - When asked to find news or trending topics: function: browser_use(action="web_search", query="latest trending news today")
-   - When asked to build a webpage with news: function: browser_use(action="web_search", query="latest trending news today")
+   - When asked to search for information: function: browser_use(action="web_search", query="use the specific search terms from the user's request")
+   - When asked to find news or trending topics: function: browser_use(action="web_search", query="use the specific search terms from the user's request")
+   - When asked to build a webpage with news: function: browser_use(action="web_search", query="use the specific search terms from the user's request")
    - When given a URL: function: browser_use(action="go_to_url", url="https://example.com")
 
 6. Make sure each tool call includes all required parameters

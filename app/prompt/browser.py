@@ -27,13 +27,22 @@ CRITICAL INSTRUCTIONS:
 
 4. IMPORTANT USAGE PATTERNS:
    - When asked to build a webpage with news:
-     function: browser_use(action="web_search", query="latest trending news today")
+     function: browser_use(action="web_search", query="use the specific search terms from the user's request")
    - When asked about trending topics:
-     function: browser_use(action="web_search", query="trending topics today")
+     function: browser_use(action="web_search", query="use the specific search terms from the user's request")
    - When asked to visit a website:
      function: browser_use(action="go_to_url", url="https://example.com")
+   - When asked to visit a website AND create something:
+     Step 1: function: browser_use(action="go_to_url", url="https://example.com")
+     Step 2: function: browser_use(action="extract_content", goal="Extract page structure and content for replication")
    - When asked to search for specific information:
      function: browser_use(action="web_search", query="your search query")
+
+5. FOR WEBPAGE CREATION TASKS:
+   If the user asks you to visit a website (like Facebook) and create a similar webpage with modifications:
+   - First: Navigate to the website
+   - Second: Extract the content and structure
+   - The system will automatically create the modified webpage file after extraction
 
 Never just explain what could be done - always use browser_use to take action.
 """
@@ -47,7 +56,7 @@ EXAMPLE RESPONSES FOR DIFFERENT TASKS:
 
 NEWS SEARCH: If the task involves searching for news, latest news, current events, or getting news information:
 ```json
-{{"name": "browser_use", "arguments": {{"action": "web_search", "query": "latest news today"}}}}
+{{"name": "browser_use", "arguments": {{"action": "web_search", "query": "use the specific search terms from the user's request"}}}}
 ```
 
 WEBSITE NAVIGATION: If the task involves going to a specific website or URL:
