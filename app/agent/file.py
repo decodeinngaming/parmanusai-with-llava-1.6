@@ -76,9 +76,22 @@ class FileAgent(BaseAgent):
                 "generate webpage",
                 "create page",
                 "build page",
+                "create a webpage",
+                "build a webpage",
+                "make a webpage",
+                "create website",
+                "build website",
                 "html",
                 "website",
             ]
+        ) or (
+            # Also check for "create" + "with" + web search context
+            "create" in user_request_lower
+            and (
+                "with the information" in user_request_lower
+                or "with the data" in user_request_lower
+                or "with the results" in user_request_lower
+            )
         )
 
         # If both web search and webpage creation are needed, delegate to browser first
@@ -96,9 +109,9 @@ class FileAgent(BaseAgent):
                 browser_task = (
                     f"search for {search_query} and extract detailed information"
                 )
-                browser_agent.memory.add_message(
-                    browser_agent.memory.Message.user_message(browser_task)
-                )
+                from app.schema import Message
+
+                browser_agent.memory.add_message(Message.user_message(browser_task))
 
                 # Run the browser agent to get search results
                 search_result = await browser_agent.run()
@@ -109,6 +122,10 @@ class FileAgent(BaseAgent):
                 )
 
             except Exception as e:
+                # Log the exception for debugging
+                import logging
+
+                logging.error(f"Web search failed: {e}")
                 # Fallback to creating webpage without live data
                 pass
 
@@ -625,10 +642,10 @@ class FileAgent(BaseAgent):
             from { opacity: 0; }
             to { opacity: 1; }
         }
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
+        @keyframes pulse {{
+            0%, 100% {{ transform: scale(1); }}
+            50% {{ transform: scale(1.1); }}
+        }}
         .fade-in-up {
             animation: fadeInUp 0.8s ease-out;
         }
@@ -1075,14 +1092,14 @@ class FileAgent(BaseAgent):
         }
 
         /* Additional Animations */
-        @keyframes bounce {
-            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-            40% { transform: translateY(-10px); }
-            60% { transform: translateY(-5px); }
-        }
-        @keyframes slideInLeft {
-            to { opacity: 1; transform: translateX(0); }
-        }
+        @keyframes bounce {{
+            0%, 20%, 50%, 80%, 100% {{ transform: translateY(0); }}
+            40% {{ transform: translateY(-10px); }}
+            60% {{ transform: translateY(-5px); }}
+        }}
+        @keyframes slideInLeft {{
+            to {{ opacity: 1; transform: translateX(0); }}
+        }}
 
         /* Responsive Design */
         @media (max-width: 768px) {
@@ -1358,11 +1375,27 @@ class FileAgent(BaseAgent):
             start = request_lower.find("search the web for") + len("search the web for")
             end = request_lower.find(" and create", start)
             if end == -1:
+                end = request_lower.find(" and build", start)
+            if end == -1:
+                end = request_lower.find(" and make", start)
+            if end == -1:
+                end = request_lower.find(" and generate", start)
+            if end == -1:
                 end = len(request_lower)
             return user_request[start:end].strip()
 
         elif "latest" in request_lower and "ai" in request_lower:
             return "latest artificial intelligence trends 2025"
+
+        elif "current" in request_lower:
+            # Extract what we're looking for current info about
+            words = user_request.split()
+            for i, word in enumerate(words):
+                if word.lower() in ["current", "latest", "recent"]:
+                    if i + 1 < len(words):
+                        topic = " ".join(words[i + 1 : i + 4])  # Get next 3 words max
+                        return f"current {topic.split(' and ')[0].strip()}"
+            return "current trends and information"
 
         else:
             # Generic fallback
@@ -1377,15 +1410,41 @@ class FileAgent(BaseAgent):
 
         user_request_lower = user_request.lower()
 
-        # Determine if this is about AI trends
+        # Extract the topic from the user request
+        search_query = self._extract_search_query(user_request)
+
+        # Generate appropriate title based on the search query
         if (
             "ai" in user_request_lower
             or "artificial intelligence" in user_request_lower
         ):
             title = "Latest AI Trends 2025"
+            topic_emoji = "🤖"
+            topic_description = "Latest AI and Technology Insights"
+        elif "climate" in user_request_lower or "environment" in user_request_lower:
+            title = "Climate & Environment News"
+            topic_emoji = "🌍"
+            topic_description = "Current Environmental and Climate Information"
+        elif "technology" in user_request_lower or "tech" in user_request_lower:
+            title = "Technology Trends & News"
+            topic_emoji = "💻"
+            topic_description = "Latest Technology Developments"
+        elif "health" in user_request_lower or "medical" in user_request_lower:
+            title = "Health & Medical News"
+            topic_emoji = "🏥"
+            topic_description = "Current Health and Medical Information"
+        elif "business" in user_request_lower or "finance" in user_request_lower:
+            title = "Business & Finance News"
+            topic_emoji = "💼"
+            topic_description = "Latest Business and Financial Insights"
+        else:
+            # Generic title based on search query
+            title = f"Latest Information: {search_query.title()}"
+            topic_emoji = "📊"
+            topic_description = f"Web Research Results for: {search_query}"
 
-            # Create content with search data
-            html_content = f"""<!DOCTYPE html>
+        # Create content with search data
+        html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1428,8 +1487,8 @@ class FileAgent(BaseAgent):
             animation: pulse 2s infinite;
         }}
         @keyframes pulse {{
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.02); }
+            0%, 100% {{ transform: scale(1); }}
+            50% {{ transform: scale(1.02); }}
         }}
         .search-info {{
             background: linear-gradient(45deg, #3498db, #2ecc71);
@@ -1479,107 +1538,54 @@ class FileAgent(BaseAgent):
 </head>
 <body>
     <div class="container">
-        <h1>🤖 Latest AI Trends 2025</h1>
+        <h1>{topic_emoji} {title}</h1>
 
         <div class="search-info">
             <h3>🔍 Live Web Search Results</h3>
-            <p>This page was created by searching the web for the latest AI trends and information!</p>
+            <p>{topic_description}</p>
+            <p><strong>Search Query:</strong> {search_query}</p>
         </div>
 
         <div class="search-data">
             <div class="data-title">📊 Search Results Data:</div>
-            <pre style="white-space: pre-wrap; font-family: inherit;">{search_data[:2000]}...</pre>
+            <pre style="white-space: pre-wrap; font-family: inherit; max-height: 400px; overflow-y: auto;">{search_data[:3000]}{"..." if len(search_data) > 3000 else ""}</pre>
         </div>
 
         <div class="trend-card">
-            <span class="trend-number">1</span>
-            <h3>Generative AI Evolution</h3>
-            <p>Large Language Models continue to advance with improved reasoning capabilities and multimodal features.</p>
+            <span class="trend-number">✅</span>
+            <h3>Web Search Completed</h3>
+            <p>Successfully gathered current information from the web and incorporated it into this webpage.</p>
         </div>
 
         <div class="trend-card">
-            <span class="trend-number">2</span>
-            <h3>AI-Powered Automation</h3>
-            <p>Businesses are increasingly adopting AI for workflow automation and process optimization.</p>
+            <span class="trend-number">🌐</span>
+            <h3>Real-Time Data</h3>
+            <p>This page contains the most recent information available on the web about your requested topic.</p>
         </div>
 
         <div class="trend-card">
-            <span class="trend-number">3</span>
-            <h3>Edge AI Computing</h3>
-            <p>AI processing is moving closer to data sources for real-time applications and privacy.</p>
-        </div>
-
-        <div class="trend-card">
-            <span class="trend-number">4</span>
-            <h3>AI Ethics and Governance</h3>
-            <p>Increased focus on responsible AI development and regulatory frameworks.</p>
-        </div>
-
-        <div class="trend-card">
-            <span class="trend-number">5</span>
-            <h3>Personalized AI Assistants</h3>
-            <p>AI assistants are becoming more personalized and context-aware for individual users.</p>
+            <span class="trend-number">🔄</span>
+            <h3>Updated Information</h3>
+            <p>Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')} with fresh web search results.</p>
         </div>
     </div>
 </body>
 </html>"""
-        else:
-            # Generic webpage with search data
-            title = "Web Search Results"
-            html_content = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{title}</title>
-    <style>
-        body {{
-            font-family: Arial, sans-serif;
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f4f4f4;
-        }}
-        .container {{
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        }}
-        h1 {{ color: #333; text-align: center; }}
-        .search-results {{
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 5px;
-            margin: 20px 0;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>{title}</h1>
-        <div class="search-results">
-            <h3>Search Results:</h3>
-            <pre>{search_data[:1500]}...</pre>
-        </div>
-    </div>
-</body>
-</html>"""
-
-        # Save the file
+        # Save the HTML content to file
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"webpage_{timestamp}.html"
+        file_path = os.path.join("workspace", filename)
 
-        workspace_dir = os.path.join(os.getcwd(), "workspace")
-        os.makedirs(workspace_dir, exist_ok=True)
-        file_path = os.path.join(workspace_dir, filename)
+        # Ensure workspace directory exists
+        os.makedirs("workspace", exist_ok=True)
 
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(html_content)
 
+        # Mark as saved
         self._file_saved = True
 
-        return f"Enhanced webpage with live search data created and saved to {file_path}. The page includes real web search results about {title.lower()}."
+        return f"Html webpage created and saved to {os.path.abspath(file_path)}"
 
     async def _create_css_file(self, user_request: str) -> str:
         """Create a standalone CSS file based on user request."""

@@ -181,3 +181,9 @@ test_webpage_creation_capabilities.py
 test_specific_webpage.py
 .gitignore
 test_html_creation.py
+app/agent/file.py
+.gitignore
+.gitignore
+test_multi_topic_web_search.py
+.gitignore
+test_web_search_debug.py
