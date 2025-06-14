@@ -189,3 +189,5 @@ test_multi_topic_web_search.py
 test_web_search_debug.py
 test_news_detection.py
 test_top_10_news_request.py
+test_news_workflow_fixed.py
+test_comprehensive_webpage_creation.py

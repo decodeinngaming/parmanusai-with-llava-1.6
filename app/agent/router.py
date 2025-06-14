@@ -87,7 +87,90 @@ class AgentRouter:
         # Log the query for debugging
         logger.info(f"Analyzing query for routing: {query}")
 
-        # Check for browser navigation + file creation tasks first
+        # Check for mixed requests first: analyze website + create webpage
+        mixed_creation_patterns = [
+            "look at google and build",
+            "visit google and create",
+            "go to google and make",
+            "check google and build",
+            "analyze google and create",
+            "study google and build",
+            "examine google and make",
+            "look at facebook and build",
+            "look at amazon and build",
+            "look at twitter and build",
+            "look at youtube and build",
+            "look at linkedin and build",
+            "look at instagram and build",
+            "mimic",
+            "copy the design",
+            "similar to",
+            "inspired by",
+            "like google but",
+            "like facebook but",
+            "style of google",
+            "design of facebook",
+        ]
+
+        has_mixed_pattern = any(
+            pattern in query_lower for pattern in mixed_creation_patterns
+        )
+        has_look_and_build = (
+            "look at" in query_lower
+            and "build" in query_lower
+            and ("webpage" in query_lower or "page" in query_lower)
+        )
+        has_look_and_create = (
+            "look at" in query_lower
+            and "create" in query_lower
+            and ("webpage" in query_lower or "page" in query_lower)
+        )
+        has_website_analysis = any(
+            site in query_lower
+            for site in [
+                "google.com",
+                "facebook.com",
+                "amazon.com",
+                "twitter.com",
+                "youtube.com",
+                "linkedin.com",
+                "instagram.com",
+                "github.com",
+                "stackoverflow.com",
+                "reddit.com",
+            ]
+        )
+
+        # Enhanced detection for website mimicking/analysis requests
+        has_design_mimicking = any(
+            word in query_lower
+            for word in [
+                "mimic",
+                "copy",
+                "similar",
+                "inspired",
+                "like",
+                "style",
+                "design",
+            ]
+        ) and any(
+            word in query_lower for word in ["webpage", "page", "website", "site"]
+        )
+
+        if (
+            has_mixed_pattern
+            or has_look_and_build
+            or has_look_and_create
+            or has_website_analysis
+            or has_design_mimicking
+        ):
+            # These requests need to create files, so route to file agent which can delegate to browser
+            logger.info(
+                "Routing to file agent for mixed request (analyze site + create webpage)"
+            )
+            return "file"
+
+        # Check for browser navigation + file creation tasks
         browser_navigation_keywords = [
             "go to",
             "visit",

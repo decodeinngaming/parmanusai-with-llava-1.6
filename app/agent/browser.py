@@ -189,10 +189,10 @@ class BrowserAgent(ToolCallAgent):
         if len(self.recent_actions) > self.max_recent_actions:
             self.recent_actions.pop(0)
 
-        # Check for repetitive patterns in recent actions
-        if len(self.recent_actions) >= 3:
-            last_three = self.recent_actions[-3:]
-            if len(set(last_three)) == 1:  # All three are the same
+        # Check for repetitive patterns in recent actions - be more lenient
+        if len(self.recent_actions) >= 4:  # Require 4 instead of 3
+            last_four = self.recent_actions[-4:]
+            if len(set(last_four)) == 1:  # All four are the same
                 logger.warning(f"Detected repetitive action pattern: {action_str}")
                 self.hallucination_detected = True
                 return False
@@ -208,8 +208,13 @@ class BrowserAgent(ToolCallAgent):
         self.action_timestamps[action_str] = current_time
         self.repeated_actions[action_str] = self.repeated_actions.get(action_str, 0) + 1
 
-        # Check if action is repeated too many times
-        if self.repeated_actions[action_str] > self.max_repetitions:
+        # Check if action is repeated too many times - be more lenient
+        max_allowed = (
+            5
+            if "search" in action_str or "extract" in action_str
+            else self.max_repetitions
+        )
+        if self.repeated_actions[action_str] > max_allowed:
             logger.warning(
                 f"Action '{action_str}' repeated too many times ({self.repeated_actions[action_str]})"
             )

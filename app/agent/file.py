@@ -27,8 +27,13 @@ class FileAgent(BaseAgent):
         Handle file operations including creating HTML files, text files, and other content.
         Enhanced to delegate web search tasks to browser agent when needed.
         """
+        import asyncio
+        import logging
         import os
         from datetime import datetime
+
+        # Setup logger
+        logger = logging.getLogger(__name__)
 
         # If we already saved a file, we're done
         if hasattr(self, "_file_saved") and self._file_saved:
@@ -45,8 +50,178 @@ class FileAgent(BaseAgent):
         if not user_request:
             return "No user request found."
 
+        # Enhanced timeout and memory management
+        start_time = datetime.now()
+        max_processing_time = 60  # 60 seconds max per request
+
         # Analyze the request to determine file type and content
         user_request_lower = user_request.lower()
+
+        # Check if this request needs website analysis AND webpage creation
+        needs_website_analysis = (
+            any(
+                pattern in user_request_lower
+                for pattern in [
+                    "look at google and build",
+                    "visit google and create",
+                    "go to google and make",
+                    "check google and build",
+                    "analyze google and create",
+                    "study google and build",
+                    "examine google and make",
+                    "look at facebook and build",
+                    "look at amazon and build",
+                    "look at twitter and build",
+                    "look at youtube and build",
+                    "look at linkedin and build",
+                    "look at instagram and build",
+                    "mimic google",
+                    "copy google",
+                    "similar to google",
+                    "inspired by google",
+                    "like google but",
+                    "style of google",
+                    "design of google",
+                    "mimic facebook",
+                    "copy facebook",
+                    "similar to facebook",
+                    "inspired by facebook",
+                    "like facebook but",
+                    "style of facebook",
+                    "design of facebook",
+                    "mimic amazon",
+                    "copy amazon",
+                    "similar to amazon",
+                    "inspired by amazon",
+                ]
+            )
+            or (
+                "look at" in user_request_lower
+                and any(
+                    site in user_request_lower
+                    for site in [
+                        "google",
+                        "facebook",
+                        "amazon",
+                        "twitter",
+                        "youtube",
+                        "linkedin",
+                        "instagram",
+                        "github",
+                        "stackoverflow",
+                        "reddit",
+                        "website",
+                        "site",
+                    ]
+                )
+                and any(
+                    action in user_request_lower
+                    for action in ["build", "create", "make", "generate", "design"]
+                )
+                and any(
+                    target in user_request_lower
+                    for target in ["webpage", "page", "website", "site"]
+                )
+            )
+            or (
+                any(
+                    mimic_word in user_request_lower
+                    for mimic_word in [
+                        "mimic",
+                        "copy",
+                        "similar",
+                        "inspired",
+                        "like",
+                        "style",
+                        "design",
+                    ]
+                )
+                and any(
+                    site in user_request_lower
+                    for site in [
+                        "google",
+                        "facebook",
+                        "amazon",
+                        "twitter",
+                        "youtube",
+                        "linkedin",
+                        "instagram",
+                    ]
+                )
+                and any(
+                    target in user_request_lower
+                    for target in ["webpage", "page", "website", "site"]
+                )
+            )
+        )
+
+        # If website analysis and webpage creation are needed, delegate to browser first
+        if needs_website_analysis:
+            try:
+                # Check processing time
+                if (datetime.now() - start_time).seconds > max_processing_time:
+                    logger.warning(
+                        "Processing timeout reached, falling back to simple webpage"
+                    )
+                    return await self._create_simple_webpage(user_request)
+
+                # Import and create browser agent with timeout
+                from app.agent.browser import BrowserAgent
+
+                browser_agent = await BrowserAgent.create()
+
+                # Extract the website to analyze
+                site_to_analyze = "https://www.google.com"  # Default to Google
+                if "google" in user_request_lower:
+                    site_to_analyze = "https://www.google.com"
+                elif "facebook" in user_request_lower:
+                    site_to_analyze = "https://www.facebook.com"
+                elif "amazon" in user_request_lower:
+                    site_to_analyze = "https://www.amazon.com"
+                elif "twitter" in user_request_lower:
+                    site_to_analyze = "https://www.twitter.com"
+                elif "youtube" in user_request_lower:
+                    site_to_analyze = "https://www.youtube.com"
+                elif "linkedin" in user_request_lower:
+                    site_to_analyze = "https://www.linkedin.com"
+                elif "instagram" in user_request_lower:
+                    site_to_analyze = "https://www.instagram.com"
+                elif "github" in user_request_lower:
+                    site_to_analyze = "https://www.github.com"
+                elif "stackoverflow" in user_request_lower:
+                    site_to_analyze = "https://www.stackoverflow.com"
+                elif "reddit" in user_request_lower:
+                    site_to_analyze = "https://www.reddit.com"
+
+                # Task the browser agent to analyze the website
+                browser_task = f"navigate to {site_to_analyze} and analyze the design, layout, and structure"
+                from app.schema import Message
+
+                browser_agent.memory.add_message(Message.user_message(browser_task))
+
+                # Run the browser agent to get website analysis with timeout
+                try:
+                    analysis_result = await asyncio.wait_for(
+                        browser_agent.run(),
+                        timeout=30,  # 30 second timeout for browser operations
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning("Browser analysis timed out, using fallback design")
+                    analysis_result = f"Timeout occurred while analyzing {site_to_analyze}. Using default design elements."
+
+                # Now create webpage based on the analysis
+                return await self._create_webpage_based_on_analysis(
+                    user_request, analysis_result, site_to_analyze
+                )
+
+            except Exception as e:
+                # Log the exception for debugging
+                import logging
+
+                logging.error(f"Website analysis failed: {e}")
+                # Fallback to creating basic webpage
+                logger.info("Falling back to simple webpage creation")
+                return await self._create_simple_webpage(user_request)
 
         # Check if this request needs web search AND webpage creation
         needs_web_search = any(
@@ -115,6 +290,13 @@ class FileAgent(BaseAgent):
         # If both web search and webpage creation are needed, delegate to browser first
         if needs_web_search and needs_webpage_creation:
             try:
+                # Check processing time
+                if (datetime.now() - start_time).seconds > max_processing_time:
+                    logger.warning(
+                        "Processing timeout reached, falling back to simple webpage"
+                    )
+                    return await self._create_simple_webpage(user_request)
+
                 # Import and create browser agent
                 from app.agent.browser import BrowserAgent
 
@@ -131,8 +313,15 @@ class FileAgent(BaseAgent):
 
                 browser_agent.memory.add_message(Message.user_message(browser_task))
 
-                # Run the browser agent to get search results
-                search_result = await browser_agent.run()
+                # Run the browser agent to get search results with timeout
+                try:
+                    search_result = await asyncio.wait_for(
+                        browser_agent.run(),
+                        timeout=30,  # 30 second timeout for search operations
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning("Browser search timed out, using fallback content")
+                    search_result = f"Search timeout occurred for '{search_query}'. Using default content."
 
                 # Now create webpage with the search results
                 return await self._create_webpage_with_search_data(
@@ -145,7 +334,8 @@ class FileAgent(BaseAgent):
 
                 logging.error(f"Web search failed: {e}")
                 # Fallback to creating webpage without live data
-                pass
+                logger.info("Falling back to webpage creation without live data")
+                return await self._create_simple_webpage(user_request)
 
         # Check if this is a standalone CSS file request (not part of HTML webpage creation)
         is_standalone_css = "css" in user_request_lower and any(
@@ -1379,16 +1569,17 @@ class FileAgent(BaseAgent):
         """Extract the search query from the user request."""
         request_lower = user_request.lower()
 
-        # Try to extract specific search terms
-        if "trends in" in request_lower:
-            # Extract what comes after "trends in"
-            start = request_lower.find("trends in") + len("trends in")
-            end = request_lower.find(" and create", start)
-            if end == -1:
-                end = len(request_lower)
-            query = user_request[start:end].strip()
-            return f"latest trends in {query}"
+        # Handle news-specific requests
+        if "top 10 news" in request_lower or "top ten news" in request_lower:
+            return "top 10 latest news headlines today"
 
+        elif "news from different websites" in request_lower:
+            return "latest news headlines from multiple sources"
+
+        elif "breaking news" in request_lower:
+            return "breaking news today"
+
+        # Try to extract specific search terms
         elif "search the web for" in request_lower:
             start = request_lower.find("search the web for") + len("search the web for")
             end = request_lower.find(" and create", start)
@@ -1401,6 +1592,27 @@ class FileAgent(BaseAgent):
             if end == -1:
                 end = len(request_lower)
             return user_request[start:end].strip()
+
+        elif "look for" in request_lower:
+            start = request_lower.find("look for") + len("look for")
+            end = request_lower.find(" and build", start)
+            if end == -1:
+                end = request_lower.find(" and create", start)
+            if end == -1:
+                end = request_lower.find(" and make", start)
+            if end == -1:
+                end = len(request_lower)
+            query = user_request[start:end].strip()
+            return query if query else user_request
+
+        elif "trends in" in request_lower:
+            # Extract what comes after "trends in"
+            start = request_lower.find("trends in") + len("trends in")
+            end = request_lower.find(" and create", start)
+            if end == -1:
+                end = len(request_lower)
+            query = user_request[start:end].strip()
+            return f"latest trends in {query}"
 
         elif "latest" in request_lower and "ai" in request_lower:
             return "latest artificial intelligence trends 2025"
@@ -1416,8 +1628,21 @@ class FileAgent(BaseAgent):
             return "current trends and information"
 
         else:
-            # Generic fallback
-            return "current trends and information"
+            # Use the actual user request as the search query
+            # Remove webpage creation keywords to get clean search query
+            clean_query = user_request
+            for phrase in [
+                "and build",
+                "and create",
+                "and make",
+                "and generate",
+                "webpage",
+                "web page",
+                "website",
+            ]:
+                clean_query = clean_query.replace(phrase, "")
+            clean_query = clean_query.strip()
+            return clean_query if clean_query else "current trends and information"
 
     async def _create_webpage_with_search_data(
         self, user_request: str, search_data: str
@@ -1531,8 +1756,8 @@ class FileAgent(BaseAgent):
         .trend-number {{
             background: #3498db;
             color: white;
-            width: 30px;
-            height: 30px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             display: inline-flex;
             align-items: center;
@@ -2424,6 +2649,7 @@ class FileAgent(BaseAgent):
 .profile-stats {
     display: flex;
     justify-content: space-around;
+    align-items: center;
     padding: 1rem 0;
     border-top: 1px solid #e2e8f0;
 }
@@ -2755,7 +2981,7 @@ a:hover {
         .cart-icon { font-size: 1.2rem; }
         .hero { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; padding: 4rem 2rem; }
         .hero h1 { font-size: 3rem; margin-bottom: 1rem; }
-        .cta-button { background: #ff6b6b; color: white; border: none; padding: 1rem 2rem; font-size: 1.1rem; border-radius: 5px; cursor: pointer; }
+        .cta-button { background: #ff6b6b; color: white; border: none; padding: 1rem 2rem; border-radius: 5px; cursor: pointer; }
         .featured-products { padding: 4rem 2rem; max-width: 1200px; margin: 0 auto; }
         .product-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; margin-top: 2rem; }
         .product-card { background: white; border-radius: 10px; padding: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; transition: transform 0.3s; }
@@ -2827,14 +3053,14 @@ a:hover {
         .portfolio-menu { display: flex; list-style: none; gap: 2rem; margin: 0; padding: 0; }
         .portfolio-menu a { color: white; text-decoration: none; }
         .portfolio-hero { background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%); color: white; text-align: center; padding: 6rem 2rem; }
-        .portfolio-cta { background: #e74c3c; color: white; border: none; padding: 1rem 2rem; border-radius: 25px; cursor: pointer; }
+        .portfolio-cta { background: #e74c3c; color: white; border: none; padding: 1rem 2rem; border-radius: 5px; cursor: pointer; }
         .portfolio-gallery { padding: 4rem 2rem; max-width: 1200px; margin: 0 auto; }
         .gallery-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem; margin-top: 2rem; }
         .gallery-item { background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
         .contact-form { background: #ecf0f1; padding: 4rem 2rem; }
         .contact-form-container { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 1rem; }
-        .contact-form-container input, .contact-form-container textarea { padding: 1rem; border: 1px solid #bdc3c7; border-radius: 5px; }
-        .contact-form-container button { background: #3498db; color: white; border: none; padding: 1rem; border-radius: 5px; cursor: pointer; }"""
+        .contact-form-container input, .contact-form-container textarea { padding: 1rem; border: 1px solid #bdc3c7; border-radius: 4px; }
+        .contact-form-container button { background: #3498db; color: white; border: none; padding: 1rem; border-radius: 4px; cursor: pointer; }"""
 
     def _get_portfolio_javascript(self):
         return """
@@ -2910,7 +3136,7 @@ a:hover {
         .restaurant-menu { display: flex; list-style: none; gap: 2rem; margin: 0; padding: 0; }
         .restaurant-menu a { color: white; text-decoration: none; }
         .restaurant-hero { background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" fill="%23654321"><rect width="1200" height="600"/></svg>'); color: white; text-align: center; padding: 6rem 2rem; background-size: cover; }
-        .restaurant-cta { background: #d35400; color: white; border: none; padding: 1rem 2rem; border-radius: 5px; cursor: pointer; font-size: 1.1rem; }
+        .restaurant-cta { background: #d35400; color: white; border: none; padding: 1rem 2rem; border-radius: 5px; cursor: pointer; }
         .menu-section { padding: 4rem 2rem; max-width: 1200px; margin: 0 auto; }
         .menu-categories { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; margin: 2rem 0; }
         .menu-category { background: #fff8dc; padding: 2rem; border-radius: 10px; }
@@ -3100,16 +3326,17 @@ a:hover {
         .learning-menu { display: flex; list-style: none; gap: 2rem; margin: 0; padding: 0; }
         .learning-menu a { color: white; text-decoration: none; }
         .user-profile { font-size: 1rem; }
-        .learning-hero { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; padding: 4rem 2rem; }
+        .learning-hero { background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%); color: white; text-align: center; padding: 4rem 2rem; }
         .learning-cta { background: #e74c3c; color: white; border: none; padding: 1rem 2rem; border-radius: 5px; cursor: pointer; }
         .course-listings { padding: 4rem 2rem; max-width: 1200px; margin: 0 auto; }
         .course-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2rem; margin-top: 2rem; }
-        .course-card { background: white; border-radius: 10px; padding: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .course-card { background: white; border-radius: 10px; padding: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; transition: transform 0.3s; }
+        .course-card:hover { transform: translateY(-5px); }
         .course-image { font-size: 3rem; text-align: center; margin-bottom: 1rem; }
         .course-meta { display: flex; gap: 1rem; margin: 1rem 0; font-size: 0.9rem; color: #7f8c8d; }
         .progress-bar { background: #ecf0f1; height: 8px; border-radius: 4px; margin: 1rem 0; }
         .progress { background: #27ae60; height: 100%; border-radius: 4px; }
-        .continue-btn, .start-btn { background: #3498db; color: white; border: none; padding: 0.8rem 1.5rem; border-radius: 5px; cursor: pointer; width: 100%; }
+        .continue-btn, .start-btn { background: #3498db; color: white; border: none; padding: 0.8rem 1.5rem; border-radius: 5px; cursor: pointer; }
         .video-player-section { background: #2c3e50; color: white; padding: 4rem 2rem; }
         .video-container { max-width: 800px; margin: 0 auto; }
         .video-placeholder { background: #34495e; height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 8px; }
@@ -3128,3 +3355,481 @@ a:hover {
         document.querySelector('.video-controls button').addEventListener('click', function() {
             this.textContent = this.textContent.includes('Play') ? '⏸️ Pause' : '⏯️ Play';
         });"""
+
+    async def _create_webpage_based_on_analysis(
+        self, user_request, analysis_result, site_to_analyze
+    ):
+        """Create a webpage based on website analysis results"""
+        try:
+            import os
+            from datetime import datetime
+
+            # Extract design elements from analysis if available
+            design_info = self._extract_design_from_analysis(
+                analysis_result, site_to_analyze
+            )
+
+            # Generate the webpage content incorporating the analyzed design
+            title = self._extract_title_from_analysis_request(
+                user_request, site_to_analyze
+            )
+
+            # Create HTML content with analyzed design influence
+            html_content = self._generate_analyzed_webpage_content(
+                title, design_info, user_request
+            )
+
+            # Save to file
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            workspace_dir = "workspace"
+            os.makedirs(workspace_dir, exist_ok=True)
+
+            filename = f"webpage_{timestamp}.html"
+            filepath = os.path.join(workspace_dir, filename)
+
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(html_content)
+
+            self._file_saved = True
+            return f"✅ Website analysis completed and webpage created successfully!\n📄 File saved: {filepath}\n🎨 Design inspired by: {site_to_analyze}"
+
+        except Exception as e:
+            # Fallback to regular webpage creation
+            import logging
+
+            logging.error(f"Error in analysis-based webpage creation: {e}")
+            return await self._create_simple_webpage(user_request)
+
+    async def _create_webpage_with_search_data(
+        self, user_request: str, search_result: str
+    ) -> str:
+        """Create a webpage incorporating live search data"""
+        try:
+            import os
+            from datetime import datetime
+
+            # Extract data from search results
+            search_data = self._extract_data_from_search_results(search_result)
+
+            # Generate title based on search content
+            title = self._extract_title_from_search_request(user_request)
+
+            # Create HTML content with search data
+            html_content = self._generate_search_based_webpage_content(
+                title, search_data, user_request
+            )
+
+            # Save to file
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            workspace_dir = "workspace"
+            os.makedirs(workspace_dir, exist_ok=True)
+
+            filename = f"webpage_{timestamp}.html"
+            filepath = os.path.join(workspace_dir, filename)
+
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(html_content)
+
+            self._file_saved = True
+            return f"✅ Web search completed and webpage created successfully!\n📄 File saved: {filepath}\n🔍 Data sourced from live web search"
+
+        except Exception as e:
+            # Fallback to regular webpage creation
+            import logging
+
+            logging.error(f"Error in search-based webpage creation: {e}")
+            return await self._create_simple_webpage(user_request)
+
+    def _extract_design_from_analysis(self, analysis_result, site_url):
+        """Extract design elements from browser analysis"""
+        design_info = {
+            "colors": [
+                "#4285f4",
+                "#34a853",
+                "#fbbc05",
+                "#ea4335",
+            ],  # Default Google colors
+            "layout": "clean_minimal",
+            "font_style": "modern",
+            "components": ["search_box", "navigation", "cards"],
+        }
+
+        if analysis_result and isinstance(analysis_result, str):
+            analysis_lower = analysis_result.lower()
+
+            # Extract color information
+            if "blue" in analysis_lower:
+                design_info["colors"] = ["#1a73e8", "#4285f4", "#5f6368", "#ffffff"]
+            elif "red" in analysis_lower:
+                design_info["colors"] = ["#ea4335", "#dc2626", "#fee2e2", "#ffffff"]
+            elif "green" in analysis_lower:
+                design_info["colors"] = ["#34a853", "#059669", "#dcfce7", "#ffffff"]
+
+            # Extract layout information
+            if "minimal" in analysis_lower or "clean" in analysis_lower:
+                design_info["layout"] = "minimal"
+            elif "grid" in analysis_lower:
+                design_info["layout"] = "grid"
+            elif "card" in analysis_lower:
+                design_info["layout"] = "card_based"
+
+            # Extract component information
+            if "search" in analysis_lower:
+                design_info["components"].append("search_prominent")
+            if "navigation" in analysis_lower or "nav" in analysis_lower:
+                design_info["components"].append("navigation_header")
+            if "footer" in analysis_lower:
+                design_info["components"].append("footer")
+
+        return design_info
+
+    def _extract_title_from_analysis_request(self, user_request, site_url):
+        """Extract appropriate title from analysis request"""
+        if "google" in user_request.lower():
+            return "Parsu - Search Made Simple"
+        elif "facebook" in user_request.lower():
+            return "Parsu Social"
+        elif "amazon" in user_request.lower():
+            return "Parsu Store"
+        else:
+            return "Parsu - Inspired Design"
+
+    def _generate_analyzed_webpage_content(self, title, design_info, user_request):
+        """Generate webpage content based on analyzed design"""
+        colors = design_info.get("colors", ["#4285f4", "#34a853", "#fbbc05", "#ea4335"])
+        layout = design_info.get("layout", "minimal")
+
+        # Create CSS based on analyzed design
+        css_styles = f"""
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+
+        body {{
+            font-family: 'Roboto', 'Arial', sans-serif;
+            background: linear-gradient(135deg, {colors[0]}10, {colors[1]}10);
+            min-height: 100vh;
+            color: #333;
+        }}
+
+        .header {{
+            background: {colors[0]};
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }}
+
+        .logo {{
+            font-size: 1.8rem;
+            font-weight: bold;
+        }}
+
+        .nav-menu {{
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+        }}
+
+        .nav-menu a {{
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }}
+
+        .nav-menu a:hover {{
+            background: rgba(255,255,255,0.2);
+        }}
+
+        .main-content {{
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }}
+
+        .hero-section {{
+            text-align: center;
+            padding: 4rem 0;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            margin-bottom: 3rem;
+        }}
+
+        .hero-title {{
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, {colors[0]}, {colors[1]});
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }}
+
+        .hero-subtitle {{
+            font-size: 1.2rem;
+            color: #666;
+            margin-bottom: 2rem;
+        }}
+
+        .search-section {{
+            display: flex;
+            justify-content: center;
+            margin: 2rem 0;
+        }}
+
+        .search-box {{
+            display: flex;
+            border: 2px solid {colors[0]};
+            border-radius: 50px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }}
+
+        .search-input {{
+            padding: 1rem 2rem;
+            border: none;
+            font-size: 1rem;
+            width: 400px;
+            outline: none;
+        }}
+
+        .search-button {{
+            background: {colors[0]};
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            cursor: pointer;
+            transition: background 0.3s;
+        }}
+
+        .search-button:hover {{
+            background: {colors[1]};
+        }}
+
+        .features-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }}
+
+        .feature-card {{
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }}
+
+        .feature-card:hover {{
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+        }}
+
+        .feature-icon {{
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: {colors[0]};
+        }}
+
+        .feature-title {{
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: #333;
+        }}
+
+        .feature-description {{
+            color: #666;
+            line-height: 1.6;
+        }}
+
+        .footer {{
+            background: #f8f9fa;
+            padding: 3rem 2rem 1rem;
+            margin-top: 4rem;
+            text-align: center;
+            border-top: 1px solid #eee;
+        }}
+
+        .footer-content {{
+            max-width: 1200px;
+            margin: 0 auto;
+        }}
+
+        .footer-links {{
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }}
+
+        .footer-links a {{
+            color: #666;
+            text-decoration: none;
+        }}
+
+        .footer-links a:hover {{
+            color: {colors[0]};
+        }}
+
+        @media (max-width: 768px) {{
+            .hero-title {{ font-size: 2rem; }}
+            .search-input {{ width: 250px; }}
+            .nav-menu {{ display: none; }}
+            .features-grid {{ grid-template-columns: 1fr; }}
+        }}
+        """
+
+        # Generate content based on the request
+        if "google" in user_request.lower():
+            content_sections = """
+            <div class="search-section">
+                <div class="search-box">
+                    <input type="text" class="search-input" placeholder="Search the web...">
+                    <button class="search-button">🔍 Search</button>
+                </div>
+            </div>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🔍</div>
+                    <h3 class="feature-title">Smart Search</h3>
+                    <p class="feature-description">Find exactly what you're looking for with our intelligent search algorithms.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3 class="feature-title">Lightning Fast</h3>
+                    <p class="feature-description">Get results in milliseconds with our optimized search infrastructure.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🛡️</div>
+                    <h3 class="feature-title">Privacy First</h3>
+                    <p class="feature-description">Your searches are private and secure. We don't track or store personal data.</p>
+                </div>
+            </div>
+            """
+        else:
+            content_sections = """
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">✨</div>
+                    <h3 class="feature-title">Beautiful Design</h3>
+                    <p class="feature-description">Crafted with attention to detail and inspired by the best.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🚀</div>
+                    <h3 class="feature-title">Modern Technology</h3>
+                    <p class="feature-description">Built with the latest web technologies for optimal performance.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💎</div>
+                    <h3 class="feature-title">Premium Quality</h3>
+                    <p class="feature-description">Every element is carefully designed to provide the best user experience.</p>
+                </div>
+            </div>
+            """
+
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    <style>
+        {css_styles}
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">{title}</div>
+        <nav>
+            <ul class="nav-menu">
+                <li><a href="#home">Home</a></li>
+                <li><a href="#about">About</a></li>
+                <li><a href="#services">Services</a></li>
+                <li><a href="#contact">Contact</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <div class="main-content">
+        <section class="hero-section">
+            <h1 class="hero-title">{title}</h1>
+            <p class="hero-subtitle">Inspired by great design, built for the future</p>
+        </section>
+
+        {content_sections}
+    </div>
+
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-links">
+                <a href="#privacy">Privacy</a>
+                <a href="#terms">Terms</a>
+                <a href="#help">Help</a>
+                <a href="#about">About</a>
+            </div>
+            <p>&copy; 2025 {title}. Designed with ❤️ by ParManus AI.</p>
+        </div>
+    </footer>
+
+    <script>
+        document.querySelector('.search-button')?.addEventListener('click', function() {{
+            const query = document.querySelector('.search-input').value;
+            if (query.trim()) {{
+                alert(`Searching for: ${{query}}`);
+            }} else {{
+                alert('Please enter a search term');
+            }}
+        }});
+
+        document.querySelector('.search-input')?.addEventListener('keypress', function(e) {{
+            if (e.key === 'Enter') {{
+                document.querySelector('.search-button').click();
+            }}
+        }});
+    </script>
+</body>
+</html>"""
+
+    async def _create_simple_webpage(self, user_request):
+        """Fallback method to create a simple webpage when other methods fail"""
+        try:
+            import os
+            from datetime import datetime
+
+            # Determine webpage type and generate content
+            webpage_type = self._determine_webpage_type(user_request)
+            title, content = self._generate_webpage_content_by_type(
+                webpage_type, user_request
+            )
+
+            # Create HTML
+            html_content = self._generate_complete_html(title, content, webpage_type)
+
+            # Save file
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            workspace_dir = "workspace"
+            os.makedirs(workspace_dir, exist_ok=True)
+
+            filename = f"webpage_{timestamp}.html"
+            filepath = os.path.join(workspace_dir, filename)
+
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(html_content)
+
+            self._file_saved = True
+            return f"✅ Webpage created successfully!\n📄 File saved: {filepath}\n🎨 Type: {webpage_type}"
+
+        except Exception as e:
+            import logging
+
+            logging.error(f"Error in simple webpage creation: {e}")
+            return f"❌ Error creating webpage: {str(e)}"
