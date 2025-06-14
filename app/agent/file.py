@@ -15,6 +15,13 @@ class FileAgent(BaseAgent):
         instance = cls(**kwargs)
         return instance
 
+    async def reset_state(self):
+        """Reset the file agent state for new tasks."""
+        self._file_saved = False
+        # Call parent reset if it exists
+        if hasattr(super(), "reset_state"):
+            await super().reset_state()
+
     async def step(self):
         """
         Handle file operations including creating HTML files, text files, and other content.
@@ -105,25 +112,81 @@ class FileAgent(BaseAgent):
                 # Fallback to creating webpage without live data
                 pass
 
-        # Check if this is a CSS file request
-        if "css" in user_request_lower and any(
+        # Check if this is a standalone CSS file request (not part of HTML webpage creation)
+        is_standalone_css = "css" in user_request_lower and any(
             keyword in user_request_lower
             for keyword in ["create", "write", "generate", "make", "build", "file"]
-        ):
+        )
+
+        # Only create standalone CSS if HTML/webpage is NOT mentioned
+        is_html_request = any(
+            keyword in user_request_lower
+            for keyword in ["html", "webpage", "web page", "website", "page"]
+        )
+
+        if is_standalone_css and not is_html_request:
             return await self._create_css_file(user_request)
 
         # Determine file type and generate appropriate content
-        if (
-            (
-                "html" in user_request_lower
-                and ("webpage" in user_request_lower or "page" in user_request_lower)
-            )
-            or ("webpage" in user_request_lower or "web page" in user_request_lower)
-            or (
-                "build" in user_request_lower
-                and ("page" in user_request_lower or "site" in user_request_lower)
-            )
-        ):
+        # Check for HTML/webpage creation requests with more comprehensive detection
+        is_webpage_request = any(
+            [
+                # Direct HTML/webpage keywords
+                "html" in user_request_lower,
+                "webpage" in user_request_lower,
+                "web page" in user_request_lower,
+                "website" in user_request_lower,
+                # Page creation with action words
+                (
+                    "page" in user_request_lower
+                    and any(
+                        action in user_request_lower
+                        for action in ["create", "build", "make", "generate", "design"]
+                    )
+                ),
+                # Landing page specifically
+                "landing page" in user_request_lower,
+                # E-commerce specific
+                (
+                    "e-commerce" in user_request_lower
+                    and any(
+                        action in user_request_lower
+                        for action in ["create", "build", "make", "generate", "design"]
+                    )
+                ),
+                (
+                    "ecommerce" in user_request_lower
+                    and any(
+                        action in user_request_lower
+                        for action in ["create", "build", "make", "generate", "design"]
+                    )
+                ),
+                # Portfolio/restaurant/dashboard specific
+                (
+                    "portfolio" in user_request_lower
+                    and any(
+                        action in user_request_lower
+                        for action in ["create", "build", "make", "generate", "design"]
+                    )
+                ),
+                (
+                    "restaurant" in user_request_lower
+                    and any(
+                        action in user_request_lower
+                        for action in ["create", "build", "make", "generate", "design"]
+                    )
+                ),
+                (
+                    "dashboard" in user_request_lower
+                    and any(
+                        action in user_request_lower
+                        for action in ["create", "build", "make", "generate", "design"]
+                    )
+                ),
+            ]
+        )
+
+        if is_webpage_request:
             # Create HTML webpage
             title = "My Webpage"  # Default title
 
@@ -1102,8 +1165,51 @@ class FileAgent(BaseAgent):
         }"""
                     javascript_code = ""
             else:
-                # Default webpage content
-                main_content = f"""
+                # Generate specific content based on request type
+                if (
+                    "e-commerce" in user_request_lower
+                    or "ecommerce" in user_request_lower
+                    or (
+                        "store" in user_request_lower
+                        and "product" in user_request_lower
+                    )
+                ):
+                    title = "TechGadgets Pro - Modern Electronics Store"
+                    main_content = self._generate_ecommerce_content()
+                    additional_styles = self._get_ecommerce_styles()
+                    javascript_code = self._get_ecommerce_javascript()
+                elif "portfolio" in user_request_lower and (
+                    "designer" in user_request_lower or "graphic" in user_request_lower
+                ):
+                    title = "Sarah Johnson - Graphic Designer Portfolio"
+                    main_content = self._generate_portfolio_content()
+                    additional_styles = self._get_portfolio_styles()
+                    javascript_code = self._get_portfolio_javascript()
+                elif "restaurant" in user_request_lower or (
+                    "menu" in user_request_lower and "food" in user_request_lower
+                ):
+                    title = "Bella Vista Restaurant - Fine Dining Experience"
+                    main_content = self._generate_restaurant_content()
+                    additional_styles = self._get_restaurant_styles()
+                    javascript_code = self._get_restaurant_javascript()
+                elif (
+                    "social media" in user_request_lower
+                    or "dashboard" in user_request_lower
+                ):
+                    title = "SocialHub - Analytics Dashboard"
+                    main_content = self._generate_dashboard_content()
+                    additional_styles = self._get_dashboard_styles()
+                    javascript_code = self._get_dashboard_javascript()
+                elif "learning" in user_request_lower or (
+                    "course" in user_request_lower and "education" in user_request_lower
+                ):
+                    title = "EduPlatform - Online Learning Hub"
+                    main_content = self._generate_learning_content()
+                    additional_styles = self._get_learning_styles()
+                    javascript_code = self._get_learning_javascript()
+                else:
+                    # Default webpage content for unrecognized requests
+                    main_content = f"""
         <h1>{title}</h1>
         <p>Welcome to this webpage created based on your request!</p>
         <div class="highlight">
@@ -1117,8 +1223,8 @@ class FileAgent(BaseAgent):
             <li>Modern CSS styling</li>
         </ul>
         <p>You can customize this content as needed for your specific requirements.</p>"""
-                additional_styles = ""
-                javascript_code = ""
+                    additional_styles = ""
+                    javascript_code = ""
 
             # Generate HTML content with dynamic content
             content = f"""<!DOCTYPE html>
@@ -1495,6 +1601,7 @@ class FileAgent(BaseAgent):
             css_content = """/* Modern Navigation CSS */
 .navbar {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
     padding: 1rem 2rem;
     position: fixed;
     top: 0;
@@ -2120,7 +2227,7 @@ class FileAgent(BaseAgent):
 /* Basic Card */
 .card {
     background: white;
-    border-radius: 12px;
+       border-radius: 12px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     padding: 1.5rem;
     transition: all 0.3s ease;
@@ -2562,3 +2669,438 @@ a:hover {
         self._file_saved = True
 
         return f"CSS file created and saved to {file_path}. The file contains {filename_base} styles with modern CSS techniques including animations, transitions, and responsive design."
+
+    def _generate_ecommerce_content(self):
+        return """
+        <header class="header">
+            <nav class="navbar">
+                <div class="logo">TechGadgets Pro</div>
+                <ul class="nav-menu">
+                    <li><a href="#home">Home</a></li>
+                    <li><a href="#products">Products</a></li>
+                    <li><a href="#about">About</a></li>
+                    <li><a href="#contact">Contact</a></li>
+                </ul>
+                <div class="cart-icon">🛒 <span class="cart-count">3</span></div>
+            </nav>
+        </header>
+
+        <section class="hero">
+            <div class="hero-content">
+                <h1>Premium Electronics Store</h1>
+                <p>Discover the latest technology and gadgets</p>
+                <button class="cta-button">Shop Now</button>
+            </div>
+        </section>
+
+        <section class="featured-products">
+            <h2>Featured Products</h2>
+            <div class="product-grid">
+                <div class="product-card">
+                    <div class="product-image">📱</div>
+                    <h3>Smartphone Pro Max</h3>
+                    <p class="price">$999.99</p>
+                    <button class="add-to-cart">Add to Cart</button>
+                </div>
+                <div class="product-card">
+                    <div class="product-image">💻</div>
+                    <h3>Gaming Laptop</h3>
+                    <p class="price">$1,299.99</p>
+                    <button class="add-to-cart">Add to Cart</button>
+                </div>
+                <div class="product-card">
+                    <div class="product-image">🎧</div>
+                    <h3>Wireless Headphones</h3>
+                    <p class="price">$199.99</p>
+                    <button class="add-to-cart">Add to Cart</button>
+                </div>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <p>&copy; 2025 TechGadgets Pro. All rights reserved.</p>
+        </footer>"""
+
+    def _get_ecommerce_styles(self):
+        return """
+        .header { background: #1a1a1a; color: white; padding: 1rem 0; }
+        .navbar { display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto; padding: 0 2rem; }
+        .logo { font-size: 1.5rem; font-weight: bold; }
+        .nav-menu { display: flex; list-style: none; gap: 2rem; margin: 0; padding: 0; }
+        .nav-menu a { color: white; text-decoration: none; }
+        .cart-icon { font-size: 1.2rem; }
+        .hero { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; padding: 4rem 2rem; }
+        .hero h1 { font-size: 3rem; margin-bottom: 1rem; }
+        .cta-button { background: #ff6b6b; color: white; border: none; padding: 1rem 2rem; font-size: 1.1rem; border-radius: 5px; cursor: pointer; }
+        .featured-products { padding: 4rem 2rem; max-width: 1200px; margin: 0 auto; }
+        .product-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; margin-top: 2rem; }
+        .product-card { background: white; border-radius: 10px; padding: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; transition: transform 0.3s; }
+        .product-card:hover { transform: translateY(-5px); }
+        .product-image { font-size: 4rem; margin-bottom: 1rem; }
+        .price { font-size: 1.5rem; color: #e74c3c; font-weight: bold; }
+        .add-to-cart { background: #27ae60; color: white; border: none; padding: 0.8rem 1.5rem; border-radius: 5px; cursor: pointer; }
+        .footer { background: #1a1a1a; color: white; text-align: center; padding: 2rem; }"""
+
+    def _get_ecommerce_javascript(self):
+        return """
+        let cartCount = 3;
+        document.querySelectorAll('.add-to-cart').forEach(button => {
+            button.addEventListener('click', function() {
+                cartCount++;
+                document.querySelector('.cart-count').textContent = cartCount;
+                this.textContent = 'Added!';
+                setTimeout(() => this.textContent = 'Add to Cart', 2000);
+            });
+        });"""
+
+    def _generate_portfolio_content(self):
+        return """
+        <header class="portfolio-header">
+            <nav class="portfolio-nav">
+                <div class="portfolio-logo">Sarah Johnson</div>
+                <ul class="portfolio-menu">
+                    <li><a href="#home">Home</a></li>
+                    <li><a href="#portfolio">Portfolio</a></li>
+                    <li><a href="#about">About</a></li>
+                    <li><a href="#contact">Contact</a></li>
+                </ul>
+            </nav>
+        </header>
+
+        <section class="portfolio-hero">
+            <div class="hero-text">
+                <h1>Creative Graphic Designer</h1>
+                <p>Bringing your vision to life through innovative design</p>
+                <button class="portfolio-cta">View My Work</button>
+            </div>
+        </section>
+
+        <section class="portfolio-gallery">
+            <h2>My Portfolio</h2>
+            <div class="gallery-grid">
+                <div class="gallery-item">🎨<h3>Brand Identity</h3><p>Logo & Brand Design</p></div>
+                <div class="gallery-item">📱<h3>Mobile App UI</h3><p>User Interface Design</p></div>
+                <div class="gallery-item">🌐<h3>Web Design</h3><p>Responsive Websites</p></div>
+                <div class="gallery-item">📄<h3>Print Design</h3><p>Brochures & Flyers</p></div>
+            </div>
+        </section>
+
+        <section class="contact-form">
+            <h2>Get In Touch</h2>
+            <form class="contact-form-container">
+                <input type="text" placeholder="Your Name" required>
+                <input type="email" placeholder="Your Email" required>
+                <textarea placeholder="Your Message" rows="5" required></textarea>
+                <button type="submit">Send Message</button>
+            </form>
+        </section>"""
+
+    def _get_portfolio_styles(self):
+        return """
+        .portfolio-header { background: #2c3e50; color: white; padding: 1rem 0; }
+        .portfolio-nav { display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto; padding: 0 2rem; }
+        .portfolio-logo { font-size: 1.8rem; font-weight: bold; }
+        .portfolio-menu { display: flex; list-style: none; gap: 2rem; margin: 0; padding: 0; }
+        .portfolio-menu a { color: white; text-decoration: none; }
+        .portfolio-hero { background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%); color: white; text-align: center; padding: 6rem 2rem; }
+        .portfolio-cta { background: #e74c3c; color: white; border: none; padding: 1rem 2rem; border-radius: 25px; cursor: pointer; }
+        .portfolio-gallery { padding: 4rem 2rem; max-width: 1200px; margin: 0 auto; }
+        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem; margin-top: 2rem; }
+        .gallery-item { background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
+        .contact-form { background: #ecf0f1; padding: 4rem 2rem; }
+        .contact-form-container { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 1rem; }
+        .contact-form-container input, .contact-form-container textarea { padding: 1rem; border: 1px solid #bdc3c7; border-radius: 5px; }
+        .contact-form-container button { background: #3498db; color: white; border: none; padding: 1rem; border-radius: 5px; cursor: pointer; }"""
+
+    def _get_portfolio_javascript(self):
+        return """
+        document.querySelector('.contact-form-container').addEventListener('submit', function(e) {
+            e.preventDefault();
+            alert('Thank you for your message! I will get back to you soon.');
+            this.reset();
+        });"""
+
+    def _generate_restaurant_content(self):
+        return """
+        <header class="restaurant-header">
+            <nav class="restaurant-nav">
+                <div class="restaurant-logo">🍽️ Bella Vista</div>
+                <ul class="restaurant-menu">
+                    <li><a href="#home">Home</a></li>
+                    <li><a href="#menu">Menu</a></li>
+                    <li><a href="#reservations">Reservations</a></li>
+                    <li><a href="#contact">Contact</a></li>
+                </ul>
+            </nav>
+        </header>
+
+        <section class="restaurant-hero">
+            <h1>Fine Dining Experience</h1>
+            <p>Authentic Italian cuisine in the heart of the city</p>
+            <button class="restaurant-cta">Make Reservation</button>
+        </section>
+
+        <section class="menu-section">
+            <h2>Our Menu</h2>
+            <div class="menu-categories">
+                <div class="menu-category">
+                    <h3>🍝 Pasta</h3>
+                    <div class="menu-item">
+                        <span>Spaghetti Carbonara</span>
+                        <span class="menu-price">$18.99</span>
+                    </div>
+                    <div class="menu-item">
+                        <span>Fettuccine Alfredo</span>
+                        <span class="menu-price">$16.99</span>
+                    </div>
+                </div>
+                <div class="menu-category">
+                    <h3>🥩 Main Courses</h3>
+                    <div class="menu-item">
+                        <span>Grilled Salmon</span>
+                        <span class="menu-price">$24.99</span>
+                    </div>
+                    <div class="menu-item">
+                        <span>Ribeye Steak</span>
+                        <span class="menu-price">$32.99</span>
+                    </div>
+                </div>
+            </div>
+            <button class="order-online">Order Online</button>
+        </section>
+
+        <section class="location-section">
+            <h2>Visit Us</h2>
+            <div class="location-info">
+                <p>📍 123 Gourmet Street, Foodie District</p>
+                <p>📞 (555) 123-4567</p>
+                <p>🕒 Open Daily: 5:00 PM - 11:00 PM</p>
+            </div>
+        </section>"""
+
+    def _get_restaurant_styles(self):
+        return """
+        .restaurant-header { background: #8b4513; color: white; padding: 1rem 0; }
+        .restaurant-nav { display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto; padding: 0 2rem; }
+        .restaurant-logo { font-size: 1.8rem; font-weight: bold; }
+        .restaurant-menu { display: flex; list-style: none; gap: 2rem; margin: 0; padding: 0; }
+        .restaurant-menu a { color: white; text-decoration: none; }
+        .restaurant-hero { background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" fill="%23654321"><rect width="1200" height="600"/></svg>'); color: white; text-align: center; padding: 6rem 2rem; background-size: cover; }
+        .restaurant-cta { background: #d35400; color: white; border: none; padding: 1rem 2rem; border-radius: 5px; cursor: pointer; font-size: 1.1rem; }
+        .menu-section { padding: 4rem 2rem; max-width: 1200px; margin: 0 auto; }
+        .menu-categories { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; margin: 2rem 0; }
+        .menu-category { background: #fff8dc; padding: 2rem; border-radius: 10px; }
+        .menu-item { display: flex; justify-content: space-between; margin: 1rem 0; padding: 0.5rem 0; border-bottom: 1px dotted #ddd; }
+        .menu-price { color: #d35400; font-weight: bold; }
+        .order-online { background: #27ae60; color: white; border: none; padding: 1rem 2rem; border-radius: 5px; cursor: pointer; display: block; margin: 2rem auto; }
+        .location-section { background: #f8f9fa; padding: 4rem 2rem; text-align: center; }
+        .location-info { max-width: 600px; margin: 0 auto; }
+        .location-info p { font-size: 1.1rem; margin: 1rem 0; }"""
+
+    def _get_restaurant_javascript(self):
+        return """
+        document.querySelector('.restaurant-cta').addEventListener('click', function() {
+            alert('Reservation system coming soon! Please call us at (555) 123-4567');
+        });
+
+        document.querySelector('.order-online').addEventListener('click', function() {
+            alert('Online ordering coming soon! Please call us at (555) 123-4567');
+        });"""
+
+    def _generate_dashboard_content(self):
+        return """
+        <header class="dashboard-header">
+            <div class="dashboard-nav">
+                <div class="dashboard-logo">📊 SocialHub</div>
+                <div class="user-info">Welcome, Admin</div>
+            </div>
+        </header>
+
+        <div class="dashboard-container">
+            <aside class="dashboard-sidebar">
+                <ul class="sidebar-menu">
+                    <li><a href="#overview">📈 Overview</a></li>
+                    <li><a href="#analytics">📊 Analytics</a></li>
+                    <li><a href="#posts">📝 Post Scheduler</a></li>
+                    <li><a href="#engagement">💬 Engagement</a></li>
+                    <li><a href="#settings">⚙️ Settings</a></li>
+                </ul>
+            </aside>
+
+            <main class="dashboard-main">
+                <section class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Total Followers</h3>
+                        <div class="stat-number">45,234</div>
+                        <div class="stat-change">+12.5%</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Engagement Rate</h3>
+                        <div class="stat-number">8.3%</div>
+                        <div class="stat-change">+2.1%</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Posts This Week</h3>
+                        <div class="stat-number">23</div>
+                        <div class="stat-change">+5</div>
+                    </div>
+                </section>
+
+                <section class="chart-section">
+                    <h2>Analytics Chart</h2>
+                    <div class="chart-placeholder">📊 Interactive Chart Would Go Here</div>
+                </section>
+
+                <section class="post-scheduler">
+                    <h2>Schedule New Post</h2>
+                    <div class="scheduler-form">
+                        <textarea placeholder="What's on your mind?"></textarea>
+                        <div class="scheduler-controls">
+                            <input type="datetime-local">
+                            <button class="schedule-btn">Schedule Post</button>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>"""
+
+    def _get_dashboard_styles(self):
+        return """
+        .dashboard-header { background: #2c3e50; color: white; padding: 1rem 0; }
+        .dashboard-nav { display: flex; justify-content: space-between; align-items: center; max-width: 1400px; margin: 0 auto; padding: 0 2rem; }
+        .dashboard-logo { font-size: 1.5rem; font-weight: bold; }
+        .dashboard-container { display: flex; max-width: 1400px; margin: 0 auto; min-height: 90vh; }
+        .dashboard-sidebar { width: 250px; background: #34495e; color: white; padding: 2rem 0; }
+        .sidebar-menu { list-style: none; padding: 0; margin: 0; }
+        .sidebar-menu li { margin: 0.5rem 0; }
+        .sidebar-menu a { color: white; text-decoration: none; padding: 1rem 2rem; display: block; }
+        .sidebar-menu a:hover { background: #2c3e50; }
+        .dashboard-main { flex: 1; padding: 2rem; background: #ecf0f1; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+        .stat-card { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .stat-number { font-size: 2rem; font-weight: bold; color: #2c3e50; }
+        .stat-change { color: #27ae60; font-size: 0.9rem; }
+        .chart-section { background: white; padding: 2rem; border-radius: 8px; margin-bottom: 2rem; }
+        .chart-placeholder { height: 300px; background: #f8f9fa; display: flex; align-items: center; justify-content: center; border-radius: 4px; }
+        .post-scheduler { background: white; padding: 2rem; border-radius: 8px; }
+        .scheduler-form textarea { width: 100%; padding: 1rem; border: 1px solid #bdc3c7; border-radius: 4px; resize: vertical; }
+        .scheduler-controls { display: flex; gap: 1rem; margin-top: 1rem; }
+        .schedule-btn { background: #3498db; color: white; border: none; padding: 0.8rem 1.5rem; border-radius: 4px; cursor: pointer; }"""
+
+    def _get_dashboard_javascript(self):
+        return """
+        document.querySelector('.schedule-btn').addEventListener('click', function() {
+            const textarea = document.querySelector('.scheduler-form textarea');
+            if (textarea.value.trim()) {
+                alert('Post scheduled successfully!');
+                textarea.value = '';
+            } else {
+                alert('Please enter some content for your post.');
+            }
+        });"""
+
+    def _generate_learning_content(self):
+        return """
+        <header class="learning-header">
+            <nav class="learning-nav">
+                <div class="learning-logo">🎓 EduPlatform</div>
+                <ul class="learning-menu">
+                    <li><a href="#home">Home</a></li>
+                    <li><a href="#courses">Courses</a></li>
+                    <li><a href="#progress">My Progress</a></li>
+                    <li><a href="#community">Community</a></li>
+                </ul>
+                <div class="user-profile">👤 John Doe</div>
+            </nav>
+        </header>
+
+        <section class="learning-hero">
+            <div class="hero-content">
+                <h1>Learn New Skills Online</h1>
+                <p>Join thousands of students in our interactive learning platform</p>
+                <button class="learning-cta">Browse Courses</button>
+            </div>
+        </section>
+
+        <section class="course-listings">
+            <h2>Featured Courses</h2>
+            <div class="course-grid">
+                <div class="course-card">
+                    <div class="course-image">💻</div>
+                    <h3>Web Development Bootcamp</h3>
+                    <p>Learn HTML, CSS, JavaScript and React</p>
+                    <div class="course-meta">
+                        <span class="duration">⏱️ 40 hours</span>
+                        <span class="students">👥 1,234 students</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress" style="width: 65%"></div>
+                    </div>
+                    <button class="continue-btn">Continue Learning</button>
+                </div>
+                <div class="course-card">
+                    <div class="course-image">🎨</div>
+                    <h3>Digital Design Fundamentals</h3>
+                    <p>Master the principles of digital design</p>
+                    <div class="course-meta">
+                        <span class="duration">⏱️ 25 hours</span>
+                        <span class="students">👥 856 students</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress" style="width: 0%"></div>
+                    </div>
+                    <button class="start-btn">Start Course</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="video-player-section">
+            <h2>Current Lesson: JavaScript Basics</h2>
+            <div class="video-container">
+                <div class="video-placeholder">
+                    🎥 Video Player Would Go Here
+                    <div class="video-controls">
+                        <button>⏯️ Play/Pause</button>
+                        <span>Progress: 15:32 / 24:18</span>
+                        <button>⚙️ Settings</button>
+                    </div>
+                </div>
+            </div>
+        </section>"""
+
+    def _get_learning_styles(self):
+        return """
+        .learning-header { background: #8e44ad; color: white; padding: 1rem 0; }
+        .learning-nav { display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto; padding: 0 2rem; }
+        .learning-logo { font-size: 1.5rem; font-weight: bold; }
+        .learning-menu { display: flex; list-style: none; gap: 2rem; margin: 0; padding: 0; }
+        .learning-menu a { color: white; text-decoration: none; }
+        .user-profile { font-size: 1rem; }
+        .learning-hero { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; padding: 4rem 2rem; }
+        .learning-cta { background: #e74c3c; color: white; border: none; padding: 1rem 2rem; border-radius: 5px; cursor: pointer; }
+        .course-listings { padding: 4rem 2rem; max-width: 1200px; margin: 0 auto; }
+        .course-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2rem; margin-top: 2rem; }
+        .course-card { background: white; border-radius: 10px; padding: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .course-image { font-size: 3rem; text-align: center; margin-bottom: 1rem; }
+        .course-meta { display: flex; gap: 1rem; margin: 1rem 0; font-size: 0.9rem; color: #7f8c8d; }
+        .progress-bar { background: #ecf0f1; height: 8px; border-radius: 4px; margin: 1rem 0; }
+        .progress { background: #27ae60; height: 100%; border-radius: 4px; }
+        .continue-btn, .start-btn { background: #3498db; color: white; border: none; padding: 0.8rem 1.5rem; border-radius: 5px; cursor: pointer; width: 100%; }
+        .video-player-section { background: #2c3e50; color: white; padding: 4rem 2rem; }
+        .video-container { max-width: 800px; margin: 0 auto; }
+        .video-placeholder { background: #34495e; height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 8px; }
+        .video-controls { display: flex; gap: 2rem; margin-top: 2rem; align-items: center; }
+        .video-controls button { background: #e74c3c; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }"""
+
+    def _get_learning_javascript(self):
+        return """
+        document.querySelectorAll('.continue-btn, .start-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const courseName = this.closest('.course-card').querySelector('h3').textContent;
+                alert(`Opening ${courseName}...`);
+            });
+        });
+
+        document.querySelector('.video-controls button').addEventListener('click', function() {
+            this.textContent = this.textContent.includes('Play') ? '⏸️ Pause' : '⏯️ Play';
+        });"""

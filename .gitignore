@@ -177,3 +177,7 @@ test_simple_website_change.py
 test_website_change.py
 test_website_switching_issue.py
 test_website_switching_memory.py
+test_webpage_creation_capabilities.py
+test_specific_webpage.py
+.gitignore
+test_html_creation.py
