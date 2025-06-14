@@ -164,220 +164,10 @@ class ToolCallAgent(ReActAgent):
             except Exception as e:
                 logger.warning(f"⚠️ Failed to parse tool calls from content: {e}")
 
-        # PATCH: If still no tool calls and the prompt is a browser/navigation task, insert a default tool call
+        # PATCH: If still no tool calls, apply fallback logic
         if not tool_calls:
-            # Get the actual user query - improved extraction logic
-            original_user_query = None
-
-            # Method 1: Check if we have access to the agent's original user request
-            if hasattr(self, "original_user_request") and self.original_user_request:
-                original_user_query = self.original_user_request.strip()
-                logger.info(f"📝 Found original user request: {original_user_query}")
-
-            # Method 2: Get the FIRST user message from memory (which should be the real request)
-            elif (
-                hasattr(self, "memory")
-                and self.memory
-                and hasattr(self.memory, "messages")
-                and len(self.memory.messages) > 0
-            ):
-                # Find the first user message that looks like a real request
-                for msg in self.memory.messages:
-                    if msg.role == "user" and msg.content:
-                        content = msg.content.strip()
-                        # Accept any reasonable user message - don't be too restrictive
-                        if len(content) > 10 and not content.startswith(
-                            ("What should", "Choose the")
-                        ):
-                            original_user_query = content
-                            logger.info(
-                                f"📝 Found user query from memory: {original_user_query}"
-                            )
-                            break
-
-            # Method 3: Fallback - check recent messages if still no query
-            if not original_user_query and hasattr(self, "messages"):
-                for msg in reversed(self.messages[-5:]):  # Only check last 5 messages
-                    if msg.role == "user" and msg.content:
-                        content = msg.content.strip()
-                        if len(content) > 10 and not content.startswith(
-                            ("What should", "Choose the")
-                        ):
-                            original_user_query = content
-                            logger.info(
-                                f"📝 Found user query from recent messages: {original_user_query}"
-                            )
-                            break
-
-            # Use the original user query
-            text_to_check = original_user_query or ""
-
-            # Debug logging
-            logger.info(f"🔍 Query extraction result: '{text_to_check}'")
-
-            if text_to_check:
-                import re
-
-                # 1. NEWS-RELATED QUERIES - Most specific first
-                news_patterns = [
-                    r"top\s+\d+\s+news",  # "top 10 news", "top 5 news"
-                    r"latest\s+news",
-                    r"recent\s+news",
-                    r"current\s+news",
-                    r"news\s+from\s+different\s+websites",
-                    r"build.*web.*page.*news",
-                    r"create.*webpage.*news",
-                ]
-
-                is_news_query = any(
-                    re.search(pattern, text_to_check.lower())
-                    for pattern in news_patterns
-                )
-
-                if is_news_query:
-                    # This is definitely a news query - search for news
-                    search_query = text_to_check.strip()
-                    tool_calls = [
-                        {
-                            "id": "default_browser_use_news_search",
-                            "type": "function",
-                            "function": {
-                                "name": "browser_use",
-                                "arguments": json.dumps(
-                                    {"action": "web_search", "query": search_query}
-                                ),
-                            },
-                        }
-                    ]
-                    logger.warning(
-                        f"⚠️ No tool call from LLM, inserting browser_use tool call for news search with query: {search_query}"
-                    )
-
-                # 2. Direct site navigation (GitHub, known sites)
-                elif "github" in text_to_check.lower():
-                    url = "https://github.com"
-                    tool_calls = [
-                        {
-                            "id": "default_browser_use_github",
-                            "type": "function",
-                            "function": {
-                                "name": "browser_use",
-                                "arguments": json.dumps(
-                                    {"action": "go_to_url", "url": url}
-                                ),
-                            },
-                        }
-                    ]
-                    logger.warning(
-                        f"⚠️ No tool call from LLM, navigating directly to GitHub: {url}"
-                    )
-
-                # 3. URL pattern detection
-                elif re.search(
-                    r"(?:go to|visit|open) (https?://)?([\w.-]+\.[a-z]{2,})(/\S*)?",
-                    text_to_check,
-                ):
-                    url_match = re.search(
-                        r"(?:go to|visit|open) (https?://)?([\w.-]+\.[a-z]{2,})(/\S*)?",
-                        text_to_check,
-                    )
-                    url = url_match.group(2)
-                    if not url_match.group(1):
-                        url = "https://" + url
-                    else:
-                        url = url_match.group(0).split(" ", 1)[-1]
-                    tool_calls = [
-                        {
-                            "id": "default_browser_use",
-                            "type": "function",
-                            "function": {
-                                "name": "browser_use",
-                                "arguments": json.dumps(
-                                    {"action": "go_to_url", "url": url}
-                                ),
-                            },
-                        }
-                    ]
-                    logger.warning(
-                        f"⚠️ No tool call from LLM, inserting default browser_use tool call for URL: {url}"
-                    )
-                # 5. Extract/analyze content
-                elif any(
-                    word in text_to_check.lower()
-                    for word in [
-                        "summarize",
-                        "summary",
-                        "extract",
-                        "analyze",
-                        "look at",
-                        "read",
-                        "get content",
-                    ]
-                ):
-                    tool_calls = [
-                        {
-                            "id": "default_browser_use_extract",
-                            "type": "function",
-                            "function": {
-                                "name": "browser_use",
-                                "arguments": json.dumps(
-                                    {"action": "extract_content", "goal": text_to_check}
-                                ),
-                            },
-                        }
-                    ]
-                    logger.warning(
-                        "⚠️ No tool call from LLM, inserting browser_use tool call for extract_content"
-                    )
-
-                # 6. General search queries
-                elif any(
-                    word in text_to_check.lower()
-                    for word in [
-                        "search",
-                        "find",
-                        "look for",
-                        "artificial intelligence",
-                        "ai",
-                        "machine learning",
-                        "technology",
-                    ]
-                ):
-                    tool_calls = [
-                        {
-                            "id": "default_browser_use_search",
-                            "type": "function",
-                            "function": {
-                                "name": "browser_use",
-                                "arguments": json.dumps(
-                                    {"action": "web_search", "query": text_to_check}
-                                ),
-                            },
-                        }
-                    ]
-                    logger.warning(
-                        "⚠️ No tool call from LLM, inserting browser_use tool call for general web_search"
-                    )
-
-                # 7. Final fallback for browser agent
-                else:
-                    if self.name == "browser":
-                        search_query = text_to_check.strip() or "latest news today"
-                        tool_calls = [
-                            {
-                                "id": "default_browser_use_fallback",
-                                "type": "function",
-                                "function": {
-                                    "name": "browser_use",
-                                    "arguments": json.dumps(
-                                        {"action": "web_search", "query": search_query}
-                                    ),
-                                },
-                            }
-                        ]
-                        logger.warning(
-                            f"⚠️ No tool call from LLM, using fallback search with query: {search_query}"
-                        )
+            self._apply_fallback_tool_calls()
+            tool_calls = self.tool_calls
         # Convert dictionary tool calls to proper ToolCall objects
         if tool_calls and isinstance(tool_calls[0], dict):
             from app.schema import Function, ToolCall
@@ -579,3 +369,247 @@ class ToolCallAgent(ReActAgent):
             return await super().run(request)
         finally:
             await self.cleanup()
+
+    def _apply_fallback_tool_calls(self):
+        """Apply fallback tool call logic when LLM doesn't generate tool calls."""
+        import json
+
+        # Get the actual user query - improved extraction logic
+        original_user_query = None
+
+        # Method 1: Check if we have access to the agent's original user request
+        if hasattr(self, "original_user_request") and self.original_user_request:
+            original_user_query = self.original_user_request.strip()
+            logger.info(f"📝 Found original user request: {original_user_query}")
+
+        # Method 2: Get the FIRST user message from memory (which should be the real request)
+        elif (
+            hasattr(self, "memory")
+            and self.memory
+            and hasattr(self.memory, "messages")
+            and len(self.memory.messages) > 0
+        ):
+            # Find the first user message that looks like a real request
+            for msg in self.memory.messages:
+                if msg.role == "user" and msg.content:
+                    content = msg.content.strip()
+                    # Accept any reasonable user message - don't be too restrictive
+                    if len(content) > 10 and not content.startswith(
+                        ("What should", "Choose the")
+                    ):
+                        original_user_query = content
+                        logger.info(
+                            f"📝 Found user query from memory: {original_user_query}"
+                        )
+                        break
+
+        # Method 3: Fallback - check recent messages if still no query
+        if not original_user_query and hasattr(self, "messages"):
+            for msg in reversed(self.messages[-5:]):  # Only check last 5 messages
+                if msg.role == "user" and msg.content:
+                    content = msg.content.strip()
+                    if len(content) > 10 and not content.startswith(
+                        ("What should", "Choose the")
+                    ):
+                        original_user_query = content
+                        logger.info(
+                            f"📝 Found user query from recent messages: {original_user_query}"
+                        )
+                        break
+
+        # Use the original user query
+        text_to_check = original_user_query or ""
+
+        # Debug logging
+        logger.info(f"🔍 Query extraction result: '{text_to_check}'")
+
+        if text_to_check:
+            import re
+
+            # 1. NEWS-RELATED QUERIES - Most specific first
+            news_patterns = [
+                r"top\s+\d+\s+news",  # "top 10 news", "top 5 news"
+                r"latest\s+news",
+                r"recent\s+news",
+                r"current\s+news",
+                r"news\s+from\s+different\s+websites",
+                r"build.*web.*page.*news",
+                r"create.*webpage.*news",
+            ]
+
+            is_news_query = any(
+                re.search(pattern, text_to_check.lower()) for pattern in news_patterns
+            )
+
+            if is_news_query:
+                # This is definitely a news query - search for news
+                search_query = text_to_check.strip()
+                self.tool_calls = [
+                    {
+                        "id": "default_browser_use_news_search",
+                        "type": "function",
+                        "function": {
+                            "name": "browser_use",
+                            "arguments": json.dumps(
+                                {"action": "web_search", "query": search_query}
+                            ),
+                        },
+                    }
+                ]
+                logger.warning(
+                    f"⚠️ No tool call from LLM, inserting browser_use tool call for news search with query: {search_query}"
+                )
+
+            # 2. Direct site navigation (GitHub, known sites)
+            elif "github" in text_to_check.lower():
+                url = "https://github.com"
+                self.tool_calls = [
+                    {
+                        "id": "default_browser_use_github",
+                        "type": "function",
+                        "function": {
+                            "name": "browser_use",
+                            "arguments": json.dumps(
+                                {"action": "go_to_url", "url": url}
+                            ),
+                        },
+                    }
+                ]
+                logger.warning(
+                    f"⚠️ No tool call from LLM, navigating directly to GitHub: {url}"
+                )
+
+            # 3. URL pattern detection
+            elif re.search(
+                r"(?:go to|visit|open) (https?://)?([\w.-]+\.[a-z]{2,})(/\S*)?",
+                text_to_check,
+            ):
+                url_match = re.search(
+                    r"(?:go to|visit|open) (https?://)?([\w.-]+\.[a-z]{2,})(/\S*)?",
+                    text_to_check,
+                )
+                url = url_match.group(2)
+                if not url_match.group(1):
+                    url = "https://" + url
+                else:
+                    url = url_match.group(0).split(" ", 1)[-1]
+                self.tool_calls = [
+                    {
+                        "id": "default_browser_use",
+                        "type": "function",
+                        "function": {
+                            "name": "browser_use",
+                            "arguments": json.dumps(
+                                {"action": "go_to_url", "url": url}
+                            ),
+                        },
+                    }
+                ]
+                logger.warning(
+                    f"⚠️ No tool call from LLM, inserting default browser_use tool call for URL: {url}"
+                )
+
+            # 4. Navigate to Google specifically (for "look at google" requests)
+            elif any(
+                phrase in text_to_check.lower()
+                for phrase in [
+                    "look at google",
+                    "visit google",
+                    "go to google",
+                    "check google",
+                    "navigate to google",
+                ]
+            ):
+                self.tool_calls = [
+                    {
+                        "id": "default_browser_use_google",
+                        "type": "function",
+                        "function": {
+                            "name": "browser_use",
+                            "arguments": json.dumps(
+                                {"action": "go_to_url", "url": "https://www.google.com"}
+                            ),
+                        },
+                    }
+                ]
+                logger.warning(
+                    "⚠️ No tool call from LLM, inserting browser_use tool call for Google navigation"
+                )
+
+            # 5. Extract/analyze content
+            elif any(
+                word in text_to_check.lower()
+                for word in [
+                    "summarize",
+                    "summary",
+                    "extract",
+                    "analyze",
+                    "look at",
+                    "read",
+                    "get content",
+                ]
+            ):
+                self.tool_calls = [
+                    {
+                        "id": "default_browser_use_extract",
+                        "type": "function",
+                        "function": {
+                            "name": "browser_use",
+                            "arguments": json.dumps(
+                                {"action": "extract_content", "goal": text_to_check}
+                            ),
+                        },
+                    }
+                ]
+                logger.warning(
+                    "⚠️ No tool call from LLM, inserting browser_use tool call for extract_content"
+                )
+
+            # 6. General search queries
+            elif any(
+                word in text_to_check.lower()
+                for word in [
+                    "search",
+                    "find",
+                    "look for",
+                    "artificial intelligence",
+                    "ai",
+                    "machine learning",
+                    "technology",
+                ]
+            ):
+                self.tool_calls = [
+                    {
+                        "id": "default_browser_use_search",
+                        "type": "function",
+                        "function": {
+                            "name": "browser_use",
+                            "arguments": json.dumps(
+                                {"action": "web_search", "query": text_to_check}
+                            ),
+                        },
+                    }
+                ]
+                logger.warning(
+                    "⚠️ No tool call from LLM, inserting browser_use tool call for general web_search"
+                )
+
+            # 7. Final fallback for browser agent
+            else:
+                if hasattr(self, "name") and self.name == "browser":
+                    search_query = text_to_check.strip() or "latest news today"
+                    self.tool_calls = [
+                        {
+                            "id": "default_browser_use_fallback",
+                            "type": "function",
+                            "function": {
+                                "name": "browser_use",
+                                "arguments": json.dumps(
+                                    {"action": "web_search", "query": search_query}
+                                ),
+                            },
+                        }
+                    ]
+                    logger.warning(
+                        f"⚠️ No tool call from LLM, using fallback search with query: {search_query}"
+                    )

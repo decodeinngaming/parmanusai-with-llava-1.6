@@ -191,3 +191,14 @@ test_news_detection.py
 test_top_10_news_request.py
 test_news_workflow_fixed.py
 test_comprehensive_webpage_creation.py
+test_agent_fixes_verification.py
+test_comprehensive_fixes.py
+test_fixed_workflow.py
+test_full_workflow.py
+test_news_webpage_workflow.py
+.gitignore
+test_task_classification_debug.py
+test_task_classification_fix.py
+top_10_news_20250613_221418.html
+.gitignore
+top_10_news_20250613_222225.html

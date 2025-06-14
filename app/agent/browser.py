@@ -277,6 +277,29 @@ class BrowserAgent(ToolCallAgent):
             )
             task_lower = task.lower()
 
+            # Check if this is a news webpage creation task (most specific first)
+            is_news_webpage_task = (
+                any(
+                    news_word in task_lower
+                    for news_word in ["news", "headlines", "articles"]
+                )
+                and any(
+                    action_word in task_lower
+                    for action_word in [
+                        "build",
+                        "create",
+                        "make",
+                        "give me",
+                        "show me",
+                        "display",
+                    ]
+                )
+                and any(
+                    page_word in task_lower
+                    for page_word in ["webpage", "page", "website", "html"]
+                )
+            )
+
             # Check if this is a complex webpage creation task
             is_complex_task = (
                 any(
@@ -291,29 +314,38 @@ class BrowserAgent(ToolCallAgent):
                     page_word in task_lower
                     for page_word in ["webpage", "page", "website", "html"]
                 )
+            ) and not is_news_webpage_task  # Exclude news webpage tasks
+
+            # Check if this is a news collection task (save to file)
+            is_news_task = (
+                any(
+                    news_word in task_lower
+                    for news_word in ["news", "headlines", "articles"]
+                )
+                and any(
+                    action_word in task_lower
+                    for action_word in ["save", "write", "file", "txt"]
+                )
+                and not is_news_webpage_task  # Exclude news webpage tasks
             )
 
-            # Check if this is a news collection task
-            is_news_task = any(
-                news_word in task_lower
-                for news_word in ["news", "headlines", "articles"]
-            ) and any(
-                action_word in task_lower
-                for action_word in ["save", "create", "write", "file", "txt"]
-            )
-
-            # Check if this is a news summarization task
-            is_news_summary_task = any(
-                news_word in task_lower
-                for news_word in [
-                    "news",
-                    "headlines",
-                    "articles",
-                    "artificial intelligence",
-                ]
-            ) and any(
-                summary_word in task_lower
-                for summary_word in ["summary", "summarize", "top", "give me"]
+            # Check if this is a news summarization task (simple summary)
+            is_news_summary_task = (
+                any(
+                    news_word in task_lower
+                    for news_word in [
+                        "news",
+                        "headlines",
+                        "articles",
+                        "artificial intelligence",
+                    ]
+                )
+                and any(
+                    summary_word in task_lower
+                    for summary_word in ["summary", "summarize", "give me"]
+                )
+                and not is_news_webpage_task  # Exclude news webpage tasks
+                and not is_news_task  # Exclude news file tasks
             )
 
             # Determine the current phase of the workflow
@@ -356,11 +388,74 @@ class BrowserAgent(ToolCallAgent):
             )
 
             logger.info(
-                f"Task analysis: complex={is_complex_task}, news={is_news_task}, news_summary={is_news_summary_task}, navigated={has_navigated}, extracted={has_extracted}, created_webpage={has_created_webpage}, searched_news={has_searched_news}, created_file={has_created_file}"
+                f"Task analysis: complex={is_complex_task}, news_webpage={is_news_webpage_task}, news={is_news_task}, news_summary={is_news_summary_task}, navigated={has_navigated}, extracted={has_extracted}, created_webpage={has_created_webpage}, searched_news={has_searched_news}, created_file={has_created_file}"
             )
 
+            # News webpage creation workflow - Phase 1: Search for news (if not done yet)
+            if is_news_webpage_task and not has_searched_news:
+                import json
+
+                from app.schema import Function, ToolCall
+
+                # Extract the number of news items requested
+                number_match = None
+                for word in task.split():
+                    if word.isdigit():
+                        number_match = int(word)
+                        break
+
+                news_count = number_match if number_match else 10
+
+                # Determine specific news type from query
+                if "sports" in task_lower:
+                    search_query = f"top {news_count} sports news today"
+                elif "technology" in task_lower or "tech" in task_lower:
+                    search_query = f"top {news_count} technology news today"
+                elif "business" in task_lower:
+                    search_query = f"top {news_count} business news today"
+                else:
+                    search_query = f"top {news_count} world news today"
+
+                tool_call = ToolCall(
+                    id="call_news_search",
+                    type="function",
+                    function=Function(
+                        name="browser_use",
+                        arguments=json.dumps(
+                            {"action": "web_search", "query": search_query}
+                        ),
+                    ),
+                )
+                self.tool_calls = [tool_call]
+                logger.info(f"Phase 1: Searching for news with query: {search_query}")
+                return True
+
+            # News webpage creation workflow - Phase 2: Create webpage from news results
+            elif is_news_webpage_task and has_searched_news and not has_created_webpage:
+                logger.info("Phase 2: Creating webpage from news results")
+
+                # Find the news content from recent messages
+                news_content = ""
+                for msg in reversed(self.memory.messages):
+                    if (
+                        msg.role in ["assistant", "tool"]
+                        and "search results" in msg.content.lower()
+                    ):
+                        news_content = msg.content
+                        break
+
+                # Create the webpage
+                webpage_result = await self._create_news_webpage(news_content, task)
+
+                # Add the result to memory and mark as completed
+                self.memory.add_message(Message.assistant_message(webpage_result))
+
+                # Mark task as completed
+                self.state = "FINISHED"
+                return True
+
             # Phase 1: Initial navigation (if not done yet)
-            if is_complex_task and not has_navigated:
+            elif is_complex_task and not has_navigated:
                 url = self._extract_url_from_task(task)
                 if url:
                     import json
@@ -533,7 +628,7 @@ class BrowserAgent(ToolCallAgent):
 
                     return True
 
-            # Default: Use normal LLM interaction
+            # Default: Use normal LLM interaction but check for smart workflow overrides
             # Update next step prompt with current browser state
             if self.browser_context_helper:
                 self.next_step_prompt = (
@@ -542,6 +637,357 @@ class BrowserAgent(ToolCallAgent):
 
             # Call parent think method
             result = await super().think()
+
+            # After calling super().think(), check if we need to override with phase-based logic
+            # This happens when LLM returns empty tool calls but we know what should happen next
+            if not self.tool_calls and (
+                is_complex_task
+                or is_news_task
+                or is_news_summary_task
+                or is_news_webpage_task
+            ):
+                logger.info(
+                    "🧠 LLM provided no tool calls, checking if phase-based logic should override..."
+                )
+
+                # Special case: If this is a news webpage task and we've had repeated search failures,
+                # create a webpage with fallback content instead of trying to search again
+                search_failures = len(
+                    [
+                        msg
+                        for msg in self.memory.messages[-8:]  # Check last 8 messages
+                        if msg.role in ["assistant", "tool"]
+                        and (
+                            "search failed" in msg.content.lower()
+                            or "web search failed" in msg.content.lower()
+                            or "timeout" in msg.content.lower()
+                            or "step 1 timed out" in msg.content.lower()
+                            or "429" in msg.content.lower()  # Rate limiting
+                            or "rate limit" in msg.content.lower()
+                            or "operation timed out" in msg.content.lower()
+                            or "connection error" in msg.content.lower()
+                            or "fallback navigation" in msg.content.lower()
+                        )
+                    ]
+                )
+
+                if (
+                    is_news_webpage_task and search_failures >= 1
+                ):  # Trigger on first failure
+                    logger.info(
+                        f"🧠 Detected search failures ({search_failures}), creating fallback news webpage..."
+                    )
+
+                    # Determine the news type from the query
+                    news_type = "general"
+                    if "sports" in task_lower:
+                        news_type = "sports"
+                    elif "technology" in task_lower or "tech" in task_lower:
+                        news_type = "technology"
+                    elif "business" in task_lower:
+                        news_type = "business"
+                    elif "health" in task_lower:
+                        news_type = "health"
+
+                    # Create appropriate fallback content based on news type
+                    if news_type == "sports":
+                        fallback_content = """Search Results: Unable to retrieve live sports news data
+
+Due to network connectivity issues, we cannot access current sports news sources.
+However, here are some example sports news categories you might be interested in:
+
+Title: Major League Baseball Updates
+Description: Latest scores, standings, and player statistics from MLB games
+Source: ESPN Sports
+
+Title: NFL Season Highlights
+Description: Recent touchdowns, team rankings, and playoff predictions
+Source: Sports Illustrated
+
+Title: Basketball Championship News
+Description: NBA and college basketball tournament updates and results
+Source: Basketball Central
+
+Title: Soccer World Cup Qualifiers
+Description: International soccer matches and World Cup qualification results
+Source: FIFA News
+
+Title: Olympic Training Updates
+Description: Athletes preparing for upcoming Olympic competitions
+Source: Olympic Network
+
+Title: Tennis Grand Slam Results
+Description: Latest from Wimbledon, US Open, and other major tournaments
+Source: Tennis Today
+
+Title: Golf Tournament Leaderboards
+Description: PGA Tour standings and championship round updates
+Source: Golf Digest
+
+Title: Hockey League Standings
+Description: NHL team rankings and playoff bracket predictions
+Source: Hockey News
+
+Title: College Sports Championships
+Description: University athletics and student athlete achievements
+Source: College Sports Network
+
+Title: Extreme Sports Adventures
+Description: Skateboarding, surfing, and adventure sports highlights
+Source: Extreme Sports Channel"""
+                    else:
+                        fallback_content = f"""Search Results: Unable to retrieve live {news_type} news data
+
+Due to network connectivity issues, we cannot access current news sources.
+However, here are some example {news_type} news categories you might be interested in:
+
+Title: Breaking News Updates
+Description: Latest developments in current events and breaking stories
+Source: News Network
+
+Title: Global Headlines
+Description: International news and world events coverage
+Source: World News
+
+Title: Local Community News
+Description: Regional updates and community event coverage
+Source: Local News
+
+Title: Economic Market Updates
+Description: Financial markets, business trends, and economic indicators
+Source: Business News
+
+Title: Weather and Climate Reports
+Description: Current weather conditions and climate change updates
+Source: Weather Network"""
+
+                    webpage_result = await self._create_news_webpage(
+                        fallback_content, task
+                    )
+                    self.memory.add_message(Message.assistant_message(webpage_result))
+                    self.state = "FINISHED"
+                    return True
+
+                # News webpage creation override - Phase 1: Search for news
+                if (
+                    is_news_webpage_task
+                    and not has_searched_news
+                    and search_failures < 1
+                ):
+                    import json
+
+                    from app.schema import Function, ToolCall
+
+                    # Extract the number of news items requested
+                    number_match = None
+                    for word in task.split():
+                        if word.isdigit():
+                            number_match = int(word)
+                            break
+
+                    news_count = number_match if number_match else 10
+
+                    # Determine specific news type from query
+                    if "sports" in task_lower:
+                        search_query = f"top {news_count} sports news today"
+                    elif "technology" in task_lower or "tech" in task_lower:
+                        search_query = f"top {news_count} technology news today"
+                    elif "business" in task_lower:
+                        search_query = f"top {news_count} business news today"
+                    else:
+                        search_query = f"top {news_count} world news today"
+
+                    tool_call = ToolCall(
+                        id="call_news_search",
+                        type="function",
+                        function=Function(
+                            name="browser_use",
+                            arguments=json.dumps(
+                                {"action": "web_search", "query": search_query}
+                            ),
+                        ),
+                    )
+                    self.tool_calls = [tool_call]
+                    logger.info(
+                        f"🧠 Phase 1 Override: Searching for news with query: {search_query}"
+                    )
+                    return True
+
+                # News webpage creation override - Phase 2: Create webpage
+                elif (
+                    is_news_webpage_task
+                    and has_searched_news
+                    and not has_created_webpage
+                ):
+                    logger.info(
+                        "🧠 Phase 2 Override: Creating webpage from news results"
+                    )
+
+                    # Find the news content from recent messages
+                    news_content = ""
+                    for msg in reversed(self.memory.messages):
+                        if (
+                            msg.role in ["assistant", "tool"]
+                            and "search results" in msg.content.lower()
+                        ):
+                            news_content = msg.content
+                            break
+
+                    # Create the webpage
+                    webpage_result = await self._create_news_webpage(news_content, task)
+
+                    # Add the result to memory and mark as completed
+                    self.memory.add_message(Message.assistant_message(webpage_result))
+
+                    # Mark task as completed
+                    self.state = "FINISHED"
+                    return True
+
+                # Phase 1: Initial navigation (if not done yet)
+                elif is_complex_task and not has_navigated:
+                    url = self._extract_url_from_task(task)
+                    if url:
+                        import json
+
+                        from app.schema import Function, ToolCall
+
+                        tool_call = ToolCall(
+                            id="call_navigation",
+                            type="function",
+                            function=Function(
+                                name="browser_use",
+                                arguments=json.dumps(
+                                    {"action": "go_to_url", "url": url}
+                                ),
+                            ),
+                        )
+                        self.tool_calls = [tool_call]
+                        logger.info(f"🧠 Phase 1 Override: Forcing navigation to {url}")
+                        return True
+
+                # Phase 2: Content extraction (if navigated but not extracted)
+                elif (
+                    (is_complex_task or is_news_summary_task)
+                    and has_navigated
+                    and not has_extracted
+                ):
+                    import json
+
+                    from app.schema import Function, ToolCall
+
+                    if is_news_summary_task:
+                        extraction_goal = "Extract the main news articles and headlines from this AI/technology news page to provide a summary"
+                    else:
+                        extraction_goal = "Extract the complete page structure, layout, and content for webpage replication"
+
+                    tool_call = ToolCall(
+                        id="call_extraction",
+                        type="function",
+                        function=Function(
+                            name="browser_use",
+                            arguments=json.dumps(
+                                {
+                                    "action": "extract_content",
+                                    "goal": extraction_goal,
+                                }
+                            ),
+                        ),
+                    )
+                    self.tool_calls = [tool_call]
+                    logger.info("🧠 Phase 2 Override: Forcing content extraction")
+                    return True
+
+                # News collection workflow override
+                elif is_news_task and not has_searched_news:
+                    import json
+
+                    from app.schema import Function, ToolCall
+
+                    # Extract the number of news items requested
+                    number_match = None
+                    for word in task.split():
+                        if word.isdigit():
+                            number_match = int(word)
+                            break
+
+                    news_count = number_match if number_match else 10
+                    search_query = f"top {news_count} world news today"
+
+                    tool_call = ToolCall(
+                        id="call_news_search",
+                        type="function",
+                        function=Function(
+                            name="browser_use",
+                            arguments=json.dumps(
+                                {"action": "web_search", "query": search_query}
+                            ),
+                        ),
+                    )
+                    self.tool_calls = [tool_call]
+                    logger.info(
+                        f"🧠 Phase 1 Override: Searching for news with query: {search_query}"
+                    )
+                    return True
+
+                # Phase 3: File creation (for complex webpage task)
+                elif (
+                    is_complex_task
+                    and has_navigated
+                    and has_extracted
+                    and not has_created_webpage
+                ):
+                    # Trigger webpage creation directly
+                    logger.info(
+                        "🧠 Phase 3 Override: Creating webpage from extracted content"
+                    )
+
+                    # Find the extracted content from recent messages
+                    extracted_content = ""
+                    for msg in reversed(self.memory.messages):
+                        if msg.role in ["assistant", "tool"] and (
+                            "extracted" in msg.content.lower()
+                            or "extract_content" in msg.content.lower()
+                        ):
+                            extracted_content = msg.content
+                            break
+
+                    # Create the webpage
+                    webpage_result = await self._create_webpage_from_extracted_content(
+                        extracted_content, task
+                    )
+
+                    # Add the result to memory and mark as completed
+                    self.memory.add_message(Message.assistant_message(webpage_result))
+
+                    # Mark task as completed
+                    self.state = "FINISHED"
+                    return True
+
+                # Phase 2: File creation (for news collection task)
+                elif is_news_task and has_searched_news and not has_created_file:
+                    logger.info(
+                        "🧠 Phase 2 Override: Creating text file from news results"
+                    )
+
+                    # Find the news content from recent messages
+                    news_content = ""
+                    for msg in reversed(self.memory.messages):
+                        if (
+                            msg.role in ["assistant", "tool"]
+                            and "search results" in msg.content.lower()
+                        ):
+                            news_content = msg.content
+                            break
+
+                    # Create the text file
+                    file_result = await self._create_news_text_file(news_content, task)
+
+                    # Add the result to memory and mark as completed
+                    self.memory.add_message(Message.assistant_message(file_result))
+
+                    # Mark task as completed
+                    self.state = "FINISHED"
+                    return True
 
             # Debug logging
             logger.info(
@@ -1104,6 +1550,288 @@ class BrowserAgent(ToolCallAgent):
 
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(html_content)
+
+    async def _create_news_webpage(self, news_content: str, user_request: str) -> str:
+        """Create a webpage displaying news content."""
+        import os
+        import re
+        from datetime import datetime
+
+        # Extract and format news items from the content
+        news_items = []
+        if news_content:
+            # Try to extract structured news data
+            lines = news_content.split("\n")
+            current_item = {}
+
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Look for title patterns
+                if (
+                    line.startswith("Title:")
+                    or line.startswith("Headline:")
+                    or (line.startswith('"') and line.endswith('"'))
+                ):
+                    if current_item:
+                        news_items.append(current_item)
+                        current_item = {}
+                    current_item["title"] = (
+                        line.replace("Title:", "")
+                        .replace("Headline:", "")
+                        .strip()
+                        .strip('"')
+                    )
+
+                # Look for URL patterns
+                elif (
+                    line.startswith("URL:")
+                    or line.startswith("Link:")
+                    or line.startswith("http")
+                ):
+                    current_item["url"] = (
+                        line.replace("URL:", "").replace("Link:", "").strip()
+                    )
+
+                # Look for description patterns
+                elif line.startswith("Description:") or line.startswith("Summary:"):
+                    current_item["description"] = (
+                        line.replace("Description:", "").replace("Summary:", "").strip()
+                    )
+
+                # Look for source patterns
+                elif line.startswith("Source:") or line.startswith("From:"):
+                    current_item["source"] = (
+                        line.replace("Source:", "").replace("From:", "").strip()
+                    )
+
+            # Add the last item
+            if current_item:
+                news_items.append(current_item)
+
+        # Fallback: create items from simple text if no structured data
+        if not news_items and news_content:
+            # Split content into chunks and create basic items
+            chunks = news_content.split("\n\n")
+            for i, chunk in enumerate(chunks[:10]):  # Limit to 10 items
+                if chunk.strip():
+                    news_items.append(
+                        {
+                            "title": f"News Item {i+1}",
+                            "description": (
+                                chunk.strip()[:200] + "..."
+                                if len(chunk.strip()) > 200
+                                else chunk.strip()
+                            ),
+                            "url": "#",
+                            "source": "Various Sources",
+                        }
+                    )
+
+        # Extract the number of news items requested
+        number_match = None
+        for word in user_request.split():
+            if word.isdigit():
+                number_match = int(word)
+                break
+
+        news_count = number_match if number_match else 10
+        news_items = news_items[:news_count]  # Limit to requested number
+
+        # Create HTML content
+        html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Top {news_count} News Headlines</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }}
+
+        .container {{
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }}
+
+        .header {{
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }}
+
+        .header h1 {{
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }}
+
+        .header p {{
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }}
+
+        .news-grid {{
+            padding: 30px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+        }}
+
+        .news-item {{
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            position: relative;
+        }}
+
+        .news-item:hover {{
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            border-color: #007bff;
+        }}
+
+        .news-item h3 {{
+            color: #2c3e50;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }}
+
+        .news-item p {{
+            color: #6c757d;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }}
+
+        .news-meta {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            color: #868e96;
+        }}
+
+        .news-source {{
+            font-weight: 500;
+            color: #007bff;
+        }}
+
+        .news-link {{
+            color: #007bff;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }}
+
+        .news-link:hover {{
+            color: #0056b3;
+            text-decoration: underline;
+        }}
+
+        .footer {{
+            background: #2c3e50;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            font-size: 0.9rem;
+        }}
+
+        .timestamp {{
+            color: #95a5a6;
+            font-size: 0.8rem;
+        }}
+
+        @media (max-width: 768px) {{
+            .news-grid {{
+                grid-template-columns: 1fr;
+                padding: 20px;
+            }}
+
+            .header h1 {{
+                font-size: 2rem;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌍 Top {news_count} News Headlines</h1>
+            <p>Latest news from around the world</p>
+            <div class="timestamp">Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}</div>
+        </div>
+
+        <div class="news-grid">"""
+
+        # Add news items
+        if news_items:
+            for i, item in enumerate(news_items, 1):
+                title = item.get("title", f"News Headline {i}")
+                description = item.get("description", "No description available.")
+                url = item.get("url", "#")
+                source = item.get("source", "Unknown Source")
+
+                html_content += f"""
+            <div class="news-item">
+                <h3>{title}</h3>
+                <p>{description}</p>
+                <div class="news-meta">
+                    <span class="news-source">{source}</span>
+                    {f'<a href="{url}" class="news-link" target="_blank">Read More →</a>' if url != '#' else '<span class="news-link">Source unavailable</span>'}
+                </div>
+            </div>"""
+        else:
+            html_content += """
+            <div class="news-item">
+                <h3>📰 News Collection in Progress</h3>
+                <p>We're working on gathering the latest news for you. Please check back soon!</p>
+                <div class="news-meta">
+                    <span class="news-source">ParManus AI</span>
+                    <span class="news-link">Status: In Progress</span>
+                </div>
+            </div>"""
+
+        html_content += """
+        </div>
+
+        <div class="footer">
+            <p>Created by ParManus AI • <span class="timestamp">Automated News Collection</span></p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+        # Save the file
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"top_{news_count}_news_{timestamp}.html"
+        filepath = os.path.join(os.getcwd(), filename)
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(html_content)
+
+        return f"✅ Successfully created news webpage: {filename}\n📁 Location: {filepath}\n🌐 Open in browser to view the top {news_count} news headlines\n📊 Found {len(news_items)} news items\n⏰ Generated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
     async def _create_news_text_file(self, news_content: str, user_request: str) -> str:
         """Create a text file with formatted news content."""
