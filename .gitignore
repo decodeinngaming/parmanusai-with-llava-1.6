@@ -187,3 +187,5 @@ app/agent/file.py
 test_multi_topic_web_search.py
 .gitignore
 test_web_search_debug.py
+test_news_detection.py
+test_top_10_news_request.py

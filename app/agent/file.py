@@ -55,7 +55,10 @@ class FileAgent(BaseAgent):
                 "search the web",
                 "search web",
                 "look up",
+                "look for",
                 "find information",
+                "find the",
+                "get the",
                 "latest trends",
                 "current news",
                 "recent",
@@ -64,6 +67,14 @@ class FileAgent(BaseAgent):
                 "up to date",
                 "real time",
                 "current information",
+                "top 10",
+                "top ten",
+                "best",
+                "trending",
+                "news",
+                "articles",
+                "headlines",
+                "stories",
             ]
         )
 
@@ -79,10 +90,17 @@ class FileAgent(BaseAgent):
                 "create a webpage",
                 "build a webpage",
                 "make a webpage",
+                "build me a web page",
+                "build me a webpage",
+                "create me a webpage",
+                "make me a webpage",
                 "create website",
                 "build website",
                 "html",
                 "website",
+                "web page",
+                "showing",  # as in "showing all top 10 news"
+                "displaying",  # as in "displaying the results"
             ]
         ) or (
             # Also check for "create" + "with" + web search context
